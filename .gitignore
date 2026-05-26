@@ -1,0 +1,38 @@
+# Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+flutter_*.png
+*.iml
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+local.properties
+*.apk
+*.aab
+*.ap_
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.tmp
+*.bak

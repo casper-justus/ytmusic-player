@@ -1,0 +1,72 @@
+name: ytmusic_player
+description: A custom YouTube Music player with yt-dlp bundling, background playback, dynamic theming, downloads, and Chromecast support.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.2.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # yt-dlp bundling — wraps youtubedl-android (Python 3.8 + yt-dlp + FFmpeg bundled)
+  extractor: ^1.0.0
+
+  # YouTube Music API — login, search, playlists, recommendations, radios
+  dart_ytmusic_api: ^1.3.6
+
+  # Audio playback engine
+  just_audio: ^0.9.39
+
+  # Background playback + native Android media notifications + lock screen
+  audio_service: ^0.18.17
+  audio_session: ^0.1.21
+
+  # Dynamic theming from album art
+  palette_generator: ^0.3.3
+
+  # Google Cast / Chromecast support
+  flutter_chrome_cast: ^1.4.6
+
+  # Local file picker for external media playback
+  file_picker: ^8.0.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Networking (downloads, API calls)
+  dio: ^5.4.0
+
+  # Image loading & caching
+  cached_network_image: ^3.3.1
+
+  # Local storage (settings, cache, download tracking)
+  hive_flutter: ^1.1.0
+  hive: ^2.2.3
+
+  # Path provider for local file locations
+  path_provider: ^2.1.2
+
+  # Permissions
+  permission_handler: ^11.3.0
+
+  # URL launcher
+  url_launcher: ^6.2.4
+
+  # Intl for date/number formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+  build_runner: ^2.4.8
+  riverpod_generator: ^2.4.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/placeholder_album_art.png
