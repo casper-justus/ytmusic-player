@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/audio_handler.dart';
 import '../core/ytdlp_service.dart';
-import '../core/ytmusic_service.dart';
 import '../models/track.dart';
 
 // =======================================================================
