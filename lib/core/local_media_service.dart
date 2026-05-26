@@ -97,8 +97,6 @@ class LocalMediaService {
         }
       }
 
-      final stat = file.statSync();
-
       return Track(
         id: file.path.hashCode.toString(),
         videoId: '', // Local files don't have a videoId

@@ -75,7 +75,6 @@ class PlayerState {
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final MusicAudioHandler _audioHandler;
   final YtdlpService _ytdlp;
-  final YtMusicService _ytMusic;
 
   StreamSubscription<Track?>? _trackSub;
   StreamSubscription<List<Track>>? _queueSub;
@@ -85,10 +84,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   PlayerNotifier({
     required MusicAudioHandler audioHandler,
     required YtdlpService ytdlp,
-    required YtMusicService ytMusic,
   })  : _audioHandler = audioHandler,
         _ytdlp = ytdlp,
-        _ytMusic = ytMusic,
         super(const PlayerState()) {
     _listenToAudioHandler();
   }
@@ -244,11 +241,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   //  Cleanup
   // =======================================================================
 
+  @override
   void dispose() {
     _trackSub?.cancel();
     _queueSub?.cancel();
     _positionSub?.cancel();
     _playingSub?.cancel();
+    super.dispose();
   }
 }
 
@@ -259,12 +258,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 final playerStateProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
   final audioHandler = ref.watch(audioHandlerProvider);
   final ytdlp = ref.watch(ytdlpServiceProvider);
-  final ytMusic = ref.watch(ytMusicServiceProvider);
 
   final notifier = PlayerNotifier(
     audioHandler: audioHandler,
     ytdlp: ytdlp,
-    ytMusic: ytMusic,
   );
   ref.onDispose(() => notifier.dispose());
   return notifier;

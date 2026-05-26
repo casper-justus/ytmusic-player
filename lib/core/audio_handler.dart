@@ -181,7 +181,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
   @override
   Future<void> stop() async {
     await _player.stop();
-    await _player.setAudioSource(null);
   }
 
   @override
@@ -234,7 +233,8 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
   Future<void> _advanceToNext() async {
     if (_queue.isEmpty) return;
 
-    final currentRepeatMode = repeatMode.valueOrNull ?? AudioServiceRepeatMode.none;
+    // Access repeatMode from base class; fall back to none if unavailable
+    final currentRepeatMode = playbackState.valueOrNull?.repeatMode ?? AudioServiceRepeatMode.none;
 
     if (currentRepeatMode == AudioServiceRepeatMode.one) {
       await _player.seek(Duration.zero);
@@ -289,7 +289,7 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
   bool get isPlaying => _player.playing;
 
   Stream<Duration> get positionStream => _player.positionStream;
-  Stream<Duration> get durationStream => _player.durationStream;
+  Stream<Duration?> get durationStream => _player.durationStream;
   Stream<bool> get playingStream => _player.playingStream;
 
   /// The stream URL for the current track, or null if none.
