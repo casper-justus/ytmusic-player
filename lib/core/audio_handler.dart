@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,10 +13,10 @@ import '../models/track.dart';
 /// - Publishes playback state updates for the UI
 /// - Handles media notifications, lock screen controls
 /// - Responds to headset/media button events
-class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
+class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
 
-  /// The current queue of tracks.
+  /// The current queue of tracks (our app-level model).
   List<Track> _queue = [];
 
   /// Index of the currently playing (or queued) track in [_queue].
@@ -28,7 +29,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   final _currentTrackController = StreamController<Track?>.broadcast();
   Stream<Track?> get currentTrackStream => _currentTrackController.stream;
 
-  /// Stream of queue changes.
+  /// Stream of queue changes (app-level Track list).
   final _queueController = StreamController<List<Track>>.broadcast();
   Stream<List<Track>> get queueStream => _queueController.stream;
 
@@ -48,10 +49,9 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _player.playbackEventStream.listen(_onPlaybackEvent);
     _player.processingStateStream.listen(_onProcessingState);
     _player.positionStream.listen((position) {
-      // Update playback state with position
-      final state = playbackState.valueOrNull;
-      if (state != null) {
-        playbackState.add(state.copyWith(updatePosition: position));
+      final current = playbackState.valueOrNull;
+      if (current != null) {
+        playbackState.add(current.copyWith(updatePosition: position));
       }
     });
   }
@@ -61,7 +61,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void _onProcessingState(ProcessingState state) {
-    // Auto-advance to next track when current ends
     if (state == ProcessingState.completed) {
       _advanceToNext();
     }
@@ -113,6 +112,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _queue = List.from(tracks);
     _currentIndex = startIndex.clamp(0, _queue.length - 1);
     _queueController.add(_queue);
+    queue.add(_queue.map(_trackToMediaItem).toList());
 
     if (_queue.isNotEmpty) {
       await _playCurrent();
@@ -123,8 +123,8 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> addTracks(List<Track> tracks) async {
     _queue.addAll(tracks);
     _queueController.add(_queue);
+    queue.add(_queue.map(_trackToMediaItem).toList());
 
-    // If nothing is playing, start with the first new track
     if (!_player.playing && _player.processingState == ProcessingState.idle) {
       _currentIndex = _queue.length - tracks.length;
       await _playCurrent();
@@ -140,15 +140,14 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
 
   /// Play a specific [track] immediately, optionally adding it to the queue.
   Future<void> playTrack(Track track) async {
-    // Check if it's already in the queue
     final existingIndex = _queue.indexWhere((t) => t.id == track.id);
     if (existingIndex >= 0) {
       _currentIndex = existingIndex;
     } else {
-      // Add to queue and start playing
       _queue.add(track);
       _currentIndex = _queue.length - 1;
       _queueController.add(_queue);
+      queue.add(_queue.map(_trackToMediaItem).toList());
     }
     await _playCurrent();
   }
@@ -172,10 +171,8 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> skipToPrevious() async {
     if (_player.position > const Duration(seconds: 3)) {
-      // Restart current track if past 3 seconds
       await _player.seek(Duration.zero);
     } else {
-      // Go to previous track
       _currentIndex = (_currentIndex - 1).clamp(0, _queue.length - 1);
       await _playCurrent();
     }
@@ -185,7 +182,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> stop() async {
     await _player.stop();
     await _player.setAudioSource(null);
-    _queueController.add(_queue);
   }
 
   @override
@@ -197,6 +193,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       case AudioServiceRepeatMode.one:
         _player.setLoopMode(LoopMode.one);
       case AudioServiceRepeatMode.all:
+      case AudioServiceRepeatMode.group:
         _player.setLoopMode(LoopMode.all);
     }
   }
@@ -204,17 +201,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     super.setShuffleMode(shuffleMode);
-    // Shuffle handling would randomize _queue order
-  }
-
-  @override
-  Future<void> setQueue(List<MediaItem> queue, {int? index}) async {
-    // audio_service may call this; we handle our own queue
-  }
-
-  overrideAudioSession(AudioSessionConfiguration config) {
-    // Configure for music playback
-    AudioSessionConfiguration.music().setAsActive();
   }
 
   // =======================================================================
@@ -227,26 +213,16 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     final track = _queue[_currentIndex];
     _currentTrackController.add(track);
 
-    // Update the media item for the notification
-    mediaItem.add(MediaItem(
-      id: track.id,
-      title: track.title,
-      artist: track.artist,
-      album: track.album ?? '',
-      artUri: track.albumArtUrl != null ? Uri.tryParse(track.albumArtUrl!) : null,
-      duration: track.duration,
-    ));
+    mediaItem.add(_trackToMediaItem(track));
 
-    // Determine the audio source
-    AudioSource source;
+    AudioSource? source;
     if (track.isDownloaded && track.localPath != null) {
-      // Play from local file
       source = AudioSource.file(track.localPath!);
     } else if (track.streamUrl != null) {
-      // Play from stream URL
       source = AudioSource.uri(Uri.parse(track.streamUrl!));
-    } else {
-      // No source available — skip
+    }
+
+    if (source == null) {
       await _advanceToNext();
       return;
     }
@@ -258,10 +234,9 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _advanceToNext() async {
     if (_queue.isEmpty) return;
 
-    final repeatMode = this.repeatMode.valueOrNull ?? AudioServiceRepeatMode.none;
+    final currentRepeatMode = repeatMode.valueOrNull ?? AudioServiceRepeatMode.none;
 
-    if (repeatMode == AudioServiceRepeatMode.one) {
-      // Restart current track
+    if (currentRepeatMode == AudioServiceRepeatMode.one) {
       await _player.seek(Duration.zero);
       await _player.play();
       return;
@@ -269,16 +244,28 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
 
     if (_currentIndex + 1 < _queue.length) {
       _currentIndex++;
-    } else if (repeatMode == AudioServiceRepeatMode.all) {
-      _currentIndex = 0; // Wrap around
+    } else if (currentRepeatMode == AudioServiceRepeatMode.all ||
+        currentRepeatMode == AudioServiceRepeatMode.group) {
+      _currentIndex = 0;
     } else {
-      // End of queue, stop
       await _player.pause();
       _currentTrackController.add(null);
       return;
     }
 
     await _playCurrent();
+  }
+
+  /// Convert a Track to audio_service's MediaItem.
+  MediaItem _trackToMediaItem(Track track) {
+    return MediaItem(
+      id: track.id,
+      title: track.title,
+      artist: track.artist,
+      album: track.album ?? '',
+      artUri: track.albumArtUrl != null ? Uri.tryParse(track.albumArtUrl!) : null,
+      duration: track.duration,
+    );
   }
 
   /// Dispose all resources.
@@ -296,8 +283,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       _queue.isNotEmpty && _currentIndex < _queue.length
           ? _queue[_currentIndex]
           : null;
-
-  List<Track> get queue => List.unmodifiable(_queue);
 
   int get currentIndex => _currentIndex;
 

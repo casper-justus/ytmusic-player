@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/track.dart';
 
 /// Service that extracts audio stream URLs using yt-dlp.
@@ -224,3 +225,11 @@ class YtdlpService {
     return null;
   }
 }
+
+// =======================================================================
+//  Riverpod provider
+// =======================================================================
+
+final ytdlpServiceProvider = Provider<YtdlpService>((ref) {
+  return YtdlpService();
+});

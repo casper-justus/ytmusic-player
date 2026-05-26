@@ -82,7 +82,6 @@ Future<MusicAudioHandler> _initAudioService() async {
 
       // Fast-forward/rewind skip interval
       fastForwardInterval: const Duration(seconds: 10),
-      seekBackwardInterval: const Duration(seconds: 10),
     ),
   );
 

@@ -82,40 +82,24 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   /// Load the user's playlists (requires login).
+  /// Note: dart_ytmusic_api v1.3.6 does not support library playlist fetching.
   Future<void> loadPlaylists() async {
     if (!_ytMusic.isLoggedIn) return;
-
     state = state.copyWith(isLoading: true);
-
     try {
-      final rawPlaylists = await _ytMusic.getLibraryPlaylists();
-      final playlists = rawPlaylists.map((p) => PlaylistItem(
-            id: p['id'] as String? ?? '',
-            title: p['title'] as String? ?? 'Unknown',
-            description: p['description'] as String?,
-            imageUrl: p['thumbnails'] != null
-                ? _bestThumbnail(p['thumbnails'])
-                : null,
-            trackCount: p['trackCount'] as int? ?? 0,
-          )).toList();
-
-      state = state.copyWith(playlists: playlists, isLoading: false);
+      state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Failed to load playlists: $e');
     }
   }
 
   /// Load liked songs (requires login).
+  /// Note: dart_ytmusic_api v1.3.6 does not support liked song fetching.
   Future<void> loadLikedSongs() async {
     if (!_ytMusic.isLoggedIn) return;
-
     state = state.copyWith(isLoading: true);
-
     try {
-      final rawSongs = await _ytMusic.getLikedSongs();
-      final tracks = rawSongs.map((s) => _parseTrack(s)).toList();
-
-      state = state.copyWith(likedSongs: tracks, isLoading: false);
+      state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Failed to load liked songs: $e');
     }

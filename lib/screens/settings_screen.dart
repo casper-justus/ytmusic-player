@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
@@ -51,7 +50,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           _SectionHeader(title: 'Playback'),
           ListTile(
-            leading: const Icon(Icons.quality),
+            leading: const Icon(Icons.music_note),
             title: const Text('Audio Quality'),
             subtitle: Text(settings.audioQuality.label),
             trailing: const Icon(Icons.chevron_right),

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dart_ytmusic_api/yt_music.dart' as yt;
 
@@ -103,27 +102,9 @@ class YtMusicService {
     }
   }
 
-  /// Get the user's library playlists (requires login).
-  Future<List<Map<String, dynamic>>> getLibraryPlaylists() async {
-    await _ensureInitialized();
-    try {
-      final playlists = await _api.getLibraryPlaylists();
-      return playlists.map((p) => p as Map<String, dynamic>).toList();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  /// Get the user's liked songs (requires login).
-  Future<List<Map<String, dynamic>>> getLikedSongs() async {
-    await _ensureInitialized();
-    try {
-      final songs = await _api.getLikedSongs();
-      return songs.map((s) => s as Map<String, dynamic>).toList();
-    } catch (e) {
-      return [];
-    }
-  }
+  /// Note: library playlists and liked songs are not available
+  /// in dart_ytmusic_api v1.3.6. These features require the
+  /// ytmusicapi_dart package or direct API calls.
 
   // =======================================================================
   //  Artists
@@ -166,15 +147,8 @@ class YtMusicService {
     }
   }
 
-  /// Get a mix/radio playlist for a given ID.
-  Future<Map<String, dynamic>?> getMix(String mixId) async {
-    await _ensureInitialized();
-    try {
-      return await _api.getMix(mixId) as Map<String, dynamic>?;
-    } catch (e) {
-      return null;
-    }
-  }
+  /// Note: mix/radio generation is not available in dart_ytmusic_api v1.3.6.
+  /// Use [getUpNext] for suggested next tracks instead.
 
   // =======================================================================
   //  Auth helpers
