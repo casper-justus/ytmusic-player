@@ -211,7 +211,9 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     mediaItem.add(_trackToMediaItem(track));
 
     AudioSource? source;
-    if (track.isDownloaded && track.localPath != null) {
+    if (track.contentUri != null) {
+      source = AudioSource.uri(Uri.parse(track.contentUri!));
+    } else if (track.isDownloaded && track.localPath != null) {
       source = AudioSource.file(track.localPath!);
     } else if (track.streamUrl != null) {
       source = AudioSource.uri(Uri.parse(track.streamUrl!));

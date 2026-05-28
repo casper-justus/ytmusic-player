@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -7,6 +9,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/track.dart';
 
 class LocalMediaService {
+  static const _channel = MethodChannel('com.ytmusic.player/mediastore');
+
   final List<Track> _localTracks = [];
   bool _scanned = false;
   bool get scanned => _scanned;
@@ -37,12 +41,42 @@ class LocalMediaService {
 
     if (includeExternal) {
       await _requestStoragePermission();
+      await _scanMediaStore();
       await _scanCommonAndroidDirs();
     }
 
     _scanned = true;
     _persistTracks();
     return List.from(_localTracks);
+  }
+
+  Future<void> _scanMediaStore() async {
+    try {
+      final json = await _channel.invokeMethod<String>('scanMediaStore');
+      if (json == null) return;
+      final list = jsonDecode(json) as List<dynamic>;
+      for (final item in list) {
+        final map = item as Map<String, dynamic>;
+        final localPath = map['localPath'] as String?;
+        final contentUri = map['contentUri'] as String?;
+        if (localPath != null && _localTracks.any((t) => t.localPath == localPath)) continue;
+
+        final track = Track(
+          id: 'mediastore_${map['id']}',
+          videoId: '',
+          title: map['title'] as String? ?? 'Unknown',
+          artist: map['artist'] as String? ?? 'Unknown Artist',
+          album: map['album'] as String?,
+          localPath: localPath,
+          contentUri: contentUri,
+          isDownloaded: true,
+          duration: Duration(milliseconds: map['durationMs'] as int? ?? 0),
+        );
+        _localTracks.add(track);
+      }
+    } catch (e) {
+      debugPrint('LocalMediaService: MediaStore scan error: $e');
+    }
   }
 
   Future<void> _scanCommonAndroidDirs() async {

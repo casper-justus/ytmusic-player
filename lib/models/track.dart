@@ -10,6 +10,7 @@ class Track {
   final String? streamUrl;
   final bool isDownloaded;
   final String? localPath;
+  final String? contentUri;
   final String? artistId;
   final String? albumId;
 
@@ -24,6 +25,7 @@ class Track {
     this.streamUrl,
     this.isDownloaded = false,
     this.localPath,
+    this.contentUri,
     this.artistId,
     this.albumId,
   });
@@ -39,6 +41,7 @@ class Track {
     String? streamUrl,
     bool? isDownloaded,
     String? localPath,
+    String? contentUri,
     String? artistId,
     String? albumId,
   }) {
@@ -53,6 +56,7 @@ class Track {
       streamUrl: streamUrl ?? this.streamUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
       localPath: localPath ?? this.localPath,
+      contentUri: contentUri ?? this.contentUri,
       artistId: artistId ?? this.artistId,
       albumId: albumId ?? this.albumId,
     );
@@ -69,6 +73,7 @@ class Track {
         'streamUrl': streamUrl,
         'isDownloaded': isDownloaded,
         'localPath': localPath,
+        'contentUri': contentUri,
         'artistId': artistId,
         'albumId': albumId,
       };
@@ -84,6 +89,7 @@ class Track {
         streamUrl: json['streamUrl'] as String?,
         isDownloaded: json['isDownloaded'] as bool? ?? false,
         localPath: json['localPath'] as String?,
+        contentUri: json['contentUri'] as String?,
         artistId: json['artistId'] as String?,
         albumId: json['albumId'] as String?,
       );
