@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import '../models/track.dart';
 
 /// Manages Chromecast / Google Cast integration.
@@ -28,8 +29,13 @@ class CastService {
   VoidCallback? onConnectionChange;
   VoidCallback? onDeviceListChange;
 
-  // Internal: would hold the CastSession/client reference.
-  // In production, this would be CastContext, CastSession, etc.
+  /// Internal device list cache.
+  List<GoogleCastDevice> _devices = [];
+  List<GoogleCastDevice> get devices => List.unmodifiable(_devices);
+
+  /// Stream subscriptions for cleanup.
+  dynamic _devicesSub;
+  dynamic _sessionSub;
 
   /// Initialize the Cast SDK.
   /// Call once at app startup.
@@ -37,12 +43,28 @@ class CastService {
     if (!isCastAvailable) return;
 
     try {
-      // flutter_chrome_cast initialization:
-      // CastContext.init(context, CastOptions);
-      // CastContext.setReceiverDelegate(MyReceiverDelegate());
-      // This registers the Cast button in the system UI.
+      const appId = GoogleCastDiscoveryCriteria.kDefaultApplicationId;
+      final options = GoogleCastOptionsAndroid(appId: appId);
+      GoogleCastContext.instance.setSharedInstanceWithOptions(options);
 
-      debugPrint('CastService: initialized');
+      // Listen for device discovery
+      _devicesSub = GoogleCastDiscoveryManager.instance.devicesStream.listen((deviceList) {
+        _devices = deviceList;
+        onDeviceListChange?.call();
+      });
+
+      // Listen for session changes
+      _sessionSub = GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
+        final wasConnected = _connected;
+        _connected = session != null;
+        _deviceName = session?.device?.friendlyName;
+
+        if (wasConnected != _connected) {
+          onConnectionChange?.call();
+        }
+      });
+
+      debugPrint('CastService: initialized with Cast SDK');
     } catch (e) {
       debugPrint('CastService: init error: $e');
     }
@@ -52,7 +74,7 @@ class CastService {
   Future<void> startDiscovery() async {
     if (!isCastAvailable) return;
     try {
-      // CastContext.startDiscovery();
+      GoogleCastDiscoveryManager.instance.startDiscovery();
       debugPrint('CastService: scanning for devices...');
     } catch (e) {
       debugPrint('CastService: discovery error: $e');
@@ -63,32 +85,26 @@ class CastService {
   Future<void> stopDiscovery() async {
     if (!isCastAvailable) return;
     try {
-      // CastContext.stopDiscovery();
+      GoogleCastDiscoveryManager.instance.stopDiscovery();
     } catch (e) {
       debugPrint('CastService: stop discovery error: $e');
     }
   }
 
   /// Get list of available Cast devices.
-  Future<List<CastDevice>> getAvailableDevices() async {
+  Future<List<GoogleCastDevice>> getAvailableDevices() async {
     if (!isCastAvailable) return [];
-
-    try {
-      // Return devices from CastContext.getCastDevices()
-      return []; // Placeholder — actual devices returned by plugin
-    } catch (e) {
-      return [];
-    }
+    return _devices;
   }
 
   /// Connect to a Cast device.
-  Future<bool> connectToDevice(CastDevice device) async {
+  Future<bool> connectToDevice(GoogleCastDevice device) async {
     if (!isCastAvailable) return false;
 
     try {
-      // CastContext.connectToDevice(device);
+      await GoogleCastSessionManager.instance.startSessionWithDevice(device);
       _connected = true;
-      _deviceName = device.name;
+      _deviceName = device.friendlyName;
       onConnectionChange?.call();
       return true;
     } catch (e) {
@@ -102,7 +118,7 @@ class CastService {
     if (!_connected) return;
 
     try {
-      // CastContext.disconnect();
+      await GoogleCastSessionManager.instance.endSessionAndStopCasting();
       _connected = false;
       _deviceName = null;
       onConnectionChange?.call();
@@ -120,25 +136,40 @@ class CastService {
     if (!_connected) return;
 
     try {
-      // Build MediaInfo and load on CastSession:
-      // final mediaInfo = MediaInfo.Builder(streamUrl)
-      //   .setContentType('audio/mp4')
-      //   .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
-      //   .setMetadata(MediaMetadata(MediaMetadata.MEDIA_TYPE_MUSIC_TRACK)
-      //     ..putString(MediaMetadata.KEY_TITLE, track.title)
-      //     ..putString(MediaMetadata.KEY_ARTIST, track.artist)
-      //     ..putString(MediaMetadata.KEY_ALBUM_NAME, track.album ?? '')
-      //     ..addImage(WebImage(Uri.parse(track.albumArtUrl ?? ''))))
-      //   .build();
-      //
-      // final request = MediaLoadRequestData.Builder()
-      //   .setMediaInfo(mediaInfo)
-      //   .setCurrentTime(position?.inSeconds.toDouble() ?? 0)
-      //   .build();
-      //
-      // CastSession.loadMedia(request);
+      // Build media metadata
+      final metadata = GoogleCastMusicMediaMetadata(
+        title: track.title,
+        artist: track.artist,
+        albumName: track.album ?? '',
+        images: track.albumArtUrl != null
+            ? [
+                GoogleCastImage(
+                  url: Uri.parse(track.albumArtUrl!),
+                  height: 480,
+                  width: 480,
+                ),
+              ]
+            : [],
+      );
 
-      debugPrint('CastService: casting $track');
+      // Build media information
+      final mediaInfo = GoogleCastMediaInformation(
+        contentId: track.id,
+        streamType: CastMediaStreamType.buffered,
+        contentUrl: Uri.parse(streamUrl),
+        contentType: 'audio/mp4',
+        metadata: metadata,
+      );
+
+      // Load and play on the Cast device
+      await GoogleCastRemoteMediaClient.instance.loadMedia(
+        mediaInfo,
+        autoPlay: true,
+        playPosition: position ?? Duration.zero,
+        playbackRate: 1.0,
+      );
+
+      debugPrint('CastService: casting ${track.title}');
     } catch (e) {
       debugPrint('CastService: cast error: $e');
     }
@@ -150,7 +181,7 @@ class CastService {
     if (!_connected) return;
 
     try {
-      // CastSession.setVolume(volume);
+      GoogleCastSessionManager.instance.setDeviceVolume(_volume);
     } catch (e) {
       debugPrint('CastService: volume error: $e');
     }
@@ -160,7 +191,13 @@ class CastService {
   Future<void> togglePlayPause() async {
     if (!_connected) return;
     try {
-      // CastSession.play() or CastSession.pause()
+      final isPlaying = GoogleCastRemoteMediaClient.instance.mediaStatus?.playerState ==
+          CastMediaPlayerState.playing;
+      if (isPlaying) {
+        await GoogleCastRemoteMediaClient.instance.pause();
+      } else {
+        await GoogleCastRemoteMediaClient.instance.play();
+      }
     } catch (e) {
       debugPrint('CastService: play/pause error: $e');
     }
@@ -170,30 +207,23 @@ class CastService {
   Future<void> seek(Duration position) async {
     if (!_connected) return;
     try {
-      // CastSession.seek(position.inSeconds.toDouble());
+      await GoogleCastRemoteMediaClient.instance.seek(
+        GoogleCastMediaSeekOption(position: position),
+      );
     } catch (e) {
       debugPrint('CastService: seek error: $e');
     }
   }
 
-  /// Dispose.
+  /// Dispose — clean up streams and disconnect.
   void dispose() {
+    try {
+      _devicesSub?.cancel();
+      _sessionSub?.cancel();
+    } catch (_) {}
     stopDiscovery();
     disconnect();
   }
-}
-
-/// Lightweight representation of a Cast device.
-class CastDevice {
-  final String id;
-  final String name;
-  final String? model;
-
-  const CastDevice({
-    required this.id,
-    required this.name,
-    this.model,
-  });
 }
 
 // =======================================================================

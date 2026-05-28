@@ -197,10 +197,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
   }
 
-  @override
-  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
-    super.setShuffleMode(shuffleMode);
-  }
 
   // =======================================================================
   //  Internal

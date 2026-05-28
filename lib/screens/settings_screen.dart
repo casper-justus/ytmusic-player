@@ -20,7 +20,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  ACCOUNT
           // =============================================================
-          _SectionHeader(title: 'Account'),
+          const _SectionHeader(title: 'Account'),
           ListTile(
             leading: const Icon(Icons.login),
             title: const Text('YouTube Music Login'),
@@ -35,20 +35,20 @@ class SettingsScreen extends ConsumerWidget {
                     child: const Text('Sign Out'),
                   )
                 : null,
-            onTap: () => _showCookieDialog(context, notifier),
+            onTap: () => Navigator.pushNamed(context, '/login'),
           ),
           if (settings.cookies != null && settings.cookies!.isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.check_circle_outline, color: Colors.green),
-              title: const Text('Account features active'),
-              subtitle: const Text('Playlists, library, recommendations'),
+            const ListTile(
+              leading: Icon(Icons.check_circle_outline, color: Colors.green),
+              title: Text('Account features active'),
+              subtitle: Text('Playlists, library, recommendations'),
               enabled: false,
             ),
 
           // =============================================================
           //  PLAYBACK
           // =============================================================
-          _SectionHeader(title: 'Playback'),
+          const _SectionHeader(title: 'Playback'),
           ListTile(
             leading: const Icon(Icons.music_note),
             title: const Text('Audio Quality'),
@@ -67,7 +67,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  DOWNLOADS
           // =============================================================
-          _SectionHeader(title: 'Downloads'),
+          const _SectionHeader(title: 'Downloads'),
           SwitchListTile(
             secondary: const Icon(Icons.download),
             title: const Text('Enable Downloads'),
@@ -87,7 +87,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  LOCAL FILES
           // =============================================================
-          _SectionHeader(title: 'Local Files'),
+          const _SectionHeader(title: 'Local Files'),
           SwitchListTile(
             secondary: const Icon(Icons.sd_storage),
             title: const Text('Include External Storage'),
@@ -99,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  THEME
           // =============================================================
-          _SectionHeader(title: 'Appearance'),
+          const _SectionHeader(title: 'Appearance'),
           ListTile(
             leading: const Icon(Icons.palette),
             title: const Text('Theme'),
@@ -118,7 +118,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  CAST
           // =============================================================
-          _SectionHeader(title: 'Casting'),
+          const _SectionHeader(title: 'Casting'),
           ListTile(
             leading: const Icon(Icons.cast),
             title: const Text('Default Cast Volume'),
@@ -141,7 +141,7 @@ class SettingsScreen extends ConsumerWidget {
           // =============================================================
           //  ABOUT
           // =============================================================
-          _SectionHeader(title: 'About'),
+          const _SectionHeader(title: 'About'),
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('YTMusic Player'),

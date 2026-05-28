@@ -5,36 +5,48 @@ import 'package:audio_service/audio_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'core/audio_handler.dart';
+import 'core/cast_service.dart';
 import 'app.dart';
+import 'screens/splash_screen.dart';
 
 /// Global entry point for the YTMusic Player.
-///
-/// Initialization order:
-/// 1. WidgetsFlutterBinding (Flutter engine)
-/// 2. Hive (local storage for settings, cache)
-/// 3. AudioService (background playback + media notifications)
-/// 4. Run the Riverpod-wrapped app
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait — music player UI doesn't benefit from landscape
+  // Show splash screen immediately
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
+      theme: ThemeData.dark(),
+    ),
+  );
+
+  // Lock to portrait
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize Hive for local storage
+  // Give some time for splash to show
+  await Future.delayed(const Duration(milliseconds: 1500));
+
+  // Initialize Hive
   await _initHive();
 
-  // Initialize the audio service (background playback, notifications)
+  // Initialize the audio service
   final audioHandler = await _initAudioService();
 
-  // Start the app
+  // Initialize Cast SDK
+  final castService = CastService();
+  await castService.initialize();
+
+  // Start the real app
   runApp(
     ProviderScope(
       overrides: [
-        // Provide the audio handler globally so Riverpod can inject it
         audioHandlerProvider.overrideWithValue(audioHandler),
+        castServiceProvider.overrideWithValue(castService),
       ],
       child: const YTMusicPlayerApp(),
     ),
@@ -56,6 +68,7 @@ Future<void> _initHive() async {
   await Hive.openBox('settings');
   await Hive.openBox('downloads');
   await Hive.openBox('cache');
+  await Hive.openBox<String>('search_history');
 }
 
 /// Initialize the audio service for background playback.

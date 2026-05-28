@@ -191,7 +191,7 @@ class YtdlpService {
   /// Invoke a method on the extractor platform channel.
   Future<dynamic> _invokeMethod(String method, [Map<String, dynamic>? args]) async {
     try {
-      return await MethodChannel('com.ytmusic.player/extractor')
+      return await const MethodChannel('com.ytmusic.player/extractor')
           .invokeMethod(method, args);
     } on MissingPluginException {
       // Fallback for environment without the native plugin

@@ -2,70 +2,80 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/track.dart';
 
-/// Scans and manages local/external audio files on the device.
-///
-/// Supports MP3, M4A/AAC, FLAC, WAV, OGG, OPUS, WMA formats.
-/// Provides playback-ready Track models for each discovered file.
 class LocalMediaService {
-  /// List of discovered local tracks.
   final List<Track> _localTracks = [];
-
-  /// Whether we've completed scanning.
   bool _scanned = false;
   bool get scanned => _scanned;
 
-  /// Supported audio file extensions.
   static const Set<String> supportedExtensions = {
     '.mp3', '.m4a', '.aac', '.flac', '.wav',
     '.ogg', '.opus', '.wma', '.webm',
   };
 
-  /// Get the list of discovered local tracks.
   List<Track> get localTracks => List.unmodifiable(_localTracks);
 
-  /// Scan the app's download directory and optionally external storage.
-  ///
-  /// [includeExternal] — whether to scan external storage (SD card, etc.)
   Future<List<Track>> scanLocalFiles({bool includeExternal = false}) async {
+    if (_scanned && _localTracks.isNotEmpty) return List.from(_localTracks);
+
     _localTracks.clear();
 
-    // 1. Scan app's download directory
     final appDir = await getApplicationDocumentsDirectory();
     await _scanDirectory('${appDir.path}/downloads');
 
-    // 2. Optionally scan external music directories
-    if (includeExternal) {
-      // Android common music directories
-      final externalDirs = [
-        '/storage/emulated/0/Music',
-        '/storage/emulated/0/Download',
-        '/sdcard/Music',
-        '/sdcard/Download',
-      ];
-
+    try {
+      final externalDirs = await getExternalStorageDirectories() ?? [];
       for (final dir in externalDirs) {
-        await _scanDirectory(dir);
+        await _scanDirectory(dir.path);
       }
+    } catch (e) {
+      debugPrint('LocalMediaService: path_provider dirs error: $e');
+    }
+
+    if (includeExternal) {
+      await _requestStoragePermission();
+      await _scanCommonAndroidDirs();
     }
 
     _scanned = true;
+    _persistTracks();
     return List.from(_localTracks);
   }
 
-  /// Scan a single directory for audio files.
+  Future<void> _scanCommonAndroidDirs() async {
+    const commonDirs = [
+      '/storage/emulated/0/Music',
+      '/storage/emulated/0/Download',
+      '/storage/emulated/0/Audio',
+      '/sdcard/Music',
+      '/sdcard/Download',
+      '/storage/emulated/0/',
+    ];
+    for (final dir in commonDirs) {
+      await _scanDirectory(dir);
+    }
+  }
+
+  Future<void> _requestStoragePermission() async {
+    if (await Permission.storage.isGranted) return;
+    if (await Permission.manageExternalStorage.isGranted) return;
+    if (await Permission.manageExternalStorage.request().isGranted) return;
+    await Permission.storage.request();
+  }
+
   Future<void> _scanDirectory(String path) async {
     final dir = Directory(path);
     if (!await dir.exists()) return;
 
     try {
-      await for (final entity in dir.list(recursive: true)) {
+      await for (final entity in dir.list(recursive: true, followLinks: false)) {
         if (entity is File && _isAudioFile(entity.path)) {
+          if (_localTracks.any((t) => t.localPath == entity.path)) continue;
           final track = _fileToTrack(entity);
-          if (track != null) {
-            _localTracks.add(track);
-          }
+          if (track != null) _localTracks.add(track);
         }
       }
     } catch (e) {
@@ -73,19 +83,16 @@ class LocalMediaService {
     }
   }
 
-  /// Check if a file path has a supported audio extension.
   bool _isAudioFile(String path) {
     final ext = path.toLowerCase();
     return supportedExtensions.any((e) => ext.endsWith(e));
   }
 
-  /// Convert a File to a Track model with metadata.
   Track? _fileToTrack(File file) {
     try {
       final filename = file.uri.pathSegments.last;
       final nameWithoutExt = filename.split('.').first;
 
-      // Try to parse "Artist - Title.mp3" convention
       String artist = 'Unknown Artist';
       String title = nameWithoutExt;
 
@@ -99,12 +106,12 @@ class LocalMediaService {
 
       return Track(
         id: file.path.hashCode.toString(),
-        videoId: '', // Local files don't have a videoId
+        videoId: '',
         title: title,
         artist: artist,
         localPath: file.path,
         isDownloaded: true,
-        duration: Duration.zero, // Would need a media info reader for real duration
+        duration: Duration.zero,
       );
     } catch (e) {
       debugPrint('LocalMediaService: error processing ${file.path}: $e');
@@ -112,7 +119,31 @@ class LocalMediaService {
     }
   }
 
-  /// Get a specific local track by file path.
+  void _persistTracks() {
+    try {
+      final box = Hive.box('local_tracks');
+      box.put('tracks', _localTracks.map((t) => t.toJson()).toList());
+      box.put('count', _localTracks.length);
+    } catch (e) {
+      debugPrint('LocalMediaService: persist error: $e');
+    }
+  }
+
+  void loadPersistedTracks() {
+    try {
+      final box = Hive.box('local_tracks');
+      final data = box.get('tracks') as List<dynamic>?;
+      if (data == null) return;
+      _localTracks.clear();
+      for (final item in data) {
+        _localTracks.add(Track.fromJson(item as Map<String, dynamic>));
+      }
+      _scanned = _localTracks.isNotEmpty;
+    } catch (e) {
+      debugPrint('LocalMediaService: load persisted error: $e');
+    }
+  }
+
   Track? getTrackByPath(String path) {
     try {
       return _localTracks.firstWhere((t) => t.localPath == path);
@@ -121,13 +152,11 @@ class LocalMediaService {
     }
   }
 
-  /// Add a manually selected file (e.g., from file_picker).
   Future<Track?> addFile(String path) async {
     final file = File(path);
     if (!await file.exists()) return null;
     if (!_isAudioFile(path)) return null;
 
-    // Check if already added
     if (_localTracks.any((t) => t.localPath == path)) {
       return _localTracks.firstWhere((t) => t.localPath == path);
     }
@@ -135,33 +164,29 @@ class LocalMediaService {
     final track = _fileToTrack(file);
     if (track != null) {
       _localTracks.add(track);
+      _persistTracks();
     }
     return track;
   }
 
-  /// Remove a local track.
   void removeTrack(Track track) {
     _localTracks.removeWhere((t) => t.id == track.id);
+    _persistTracks();
   }
 
-  /// Clear all local tracks from the list (doesn't delete files).
   void clear() {
     _localTracks.clear();
     _scanned = false;
   }
 
-  /// Dispose.
   void dispose() {
     _localTracks.clear();
   }
 }
 
-// =======================================================================
-//  Riverpod provider
-// =======================================================================
-
 final localMediaServiceProvider = Provider<LocalMediaService>((ref) {
   final service = LocalMediaService();
+  service.loadPersistedTracks();
   ref.onDispose(() => service.dispose());
   return service;
 });

@@ -18,7 +18,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Load home sections on first build
     Future.microtask(() {
       ref.read(libraryProvider.notifier).loadHomeSections();
     });
@@ -28,6 +27,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    ref.listen(libraryProvider, (prev, next) {
+      if (prev?.isLoggedIn != next.isLoggedIn && next.isLoggedIn) {
+        ref.read(libraryProvider.notifier).loadHomeSections();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

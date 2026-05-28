@@ -3,6 +3,7 @@ import 'dart:ui' show Color;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/audio_handler.dart';
+import '../core/ytmusic_service.dart';
 import '../core/ytdlp_service.dart';
 import '../models/track.dart';
 
@@ -73,6 +74,7 @@ class PlayerState {
 
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final MusicAudioHandler _audioHandler;
+  final YtMusicService _ytMusic;
   final YtdlpService _ytdlp;
 
   StreamSubscription<Track?>? _trackSub;
@@ -82,8 +84,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   PlayerNotifier({
     required MusicAudioHandler audioHandler,
+    required YtMusicService ytMusic,
     required YtdlpService ytdlp,
   })  : _audioHandler = audioHandler,
+        _ytMusic = ytMusic,
         _ytdlp = ytdlp,
         super(const PlayerState()) {
     _listenToAudioHandler();
@@ -152,15 +156,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       Track resolvedTrack = track;
 
-      // If no stream URL, extract it via yt-dlp
+      // Try YT Music API stream URL first (pure Dart, no native plugin needed)
       if (track.streamUrl == null && track.videoId.isNotEmpty) {
-        final streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+        String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+        // Fallback to yt-dlp extractor plugin if API fails
+        if (streamUrl == null) {
+          streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+        }
         if (streamUrl != null) {
           resolvedTrack = track.copyWith(streamUrl: streamUrl);
         }
       }
 
-      // If YT Music has library data, use it for radio/up-next
       await _audioHandler.playTrack(resolvedTrack);
       state = state.copyWith(
         currentTrack: resolvedTrack,
@@ -176,17 +183,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> setQueue(List<Track> tracks, {int startIndex = 0}) async {
     state = state.copyWith(isLoading: true);
 
-    // Resolve stream URLs for queued tracks (batch)
     final resolvedTracks = <Track>[];
     for (final track in tracks) {
       if (track.streamUrl != null || track.isDownloaded) {
         resolvedTracks.add(track);
       } else if (track.videoId.isNotEmpty) {
         try {
-          final streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+          String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+          if (streamUrl == null) {
+            streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+          }
           resolvedTracks.add(track.copyWith(streamUrl: streamUrl));
         } catch (e) {
-          resolvedTracks.add(track); // Add anyway, will skip on playback
+          resolvedTracks.add(track);
         }
       } else {
         resolvedTracks.add(track);
@@ -256,10 +265,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
 final playerStateProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
   final audioHandler = ref.watch(audioHandlerProvider);
+  final ytMusic = ref.watch(ytMusicServiceProvider);
   final ytdlp = ref.watch(ytdlpServiceProvider);
 
   final notifier = PlayerNotifier(
     audioHandler: audioHandler,
+    ytMusic: ytMusic,
     ytdlp: ytdlp,
   );
   ref.onDispose(() => notifier.dispose());

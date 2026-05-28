@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import '../core/cast_service.dart';
 
 /// A floating Cast button that opens a device picker when tapped.
@@ -101,7 +102,7 @@ class CastButton extends ConsumerWidget {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
-              FutureBuilder<List<CastDevice>>(
+              FutureBuilder<List<GoogleCastDevice>>(
                 future: service.getAvailableDevices(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -140,8 +141,8 @@ class CastButton extends ConsumerWidget {
                     children: devices.map((device) {
                       return ListTile(
                         leading: const Icon(Icons.tv),
-                        title: Text(device.name),
-                        subtitle: device.model != null ? Text(device.model!) : null,
+                        title: Text(device.friendlyName),
+                        subtitle: device.modelName != null ? Text(device.modelName!) : null,
                         onTap: () async {
                           await service.connectToDevice(device);
                           if (ctx.mounted) Navigator.pop(ctx);

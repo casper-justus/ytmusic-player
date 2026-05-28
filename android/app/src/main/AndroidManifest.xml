@@ -30,14 +30,19 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-    <application
+        <application
         android:label="YTMusic Player"
-        android:name="io.flutter.app.FlutterApplication"
+        android:name="android.app.Application"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:extractNativeLibs="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
+
+        <!-- Flutter embedding version 2 is required for Flutter 3.29+ -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
 
         <!-- Main activity -->
         <activity
@@ -87,10 +92,16 @@
             </intent-filter>
         </receiver>
 
-        <!-- Google Cast options -->
+        <!-- Google Cast options (flutter_chrome_cast provider) -->
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.google.android.gms.cast.framework.options.CastOptionsProvider" />
+            android:value="com.felnanuke.google_cast.GoogleCastOptionsProvider" />
+
+        <!-- Media notification service for cast controls -->
+        <service
+            android:name="com.google.android.gms.cast.framework.media.MediaNotificationService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
     </application>
 </manifest>

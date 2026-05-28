@@ -7,6 +7,11 @@ import 'screens/library_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/local_files_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/playlist_detail_screen.dart';
+import 'screens/album_detail_screen.dart';
+import 'screens/login_screen.dart';
+import 'models/playlist_item.dart';
+import 'models/album.dart';
 
 /// Root widget of the YTMusic Player app.
 ///
@@ -110,32 +115,36 @@ class YTMusicPlayerApp extends ConsumerWidget {
           builder: (_) => const SettingsScreen(),
           settings: routeSettings,
         );
-      // Playlist/album detail — receives a PlaylistItem or Album as argument
-      case '/playlist':
-      case '/album':
+      case '/login':
         return MaterialPageRoute(
-          builder: (_) => _PlaceholderDetailScreen(
-            title: routeSettings.name == '/playlist' ? 'Playlist' : 'Album',
-          ),
+          builder: (_) => const LoginScreen(),
           settings: routeSettings,
         );
+      // Playlist detail — receives a PlaylistItem as argument
+      case '/playlist':
+        final playlist = routeSettings.arguments;
+        if (playlist is PlaylistItem) {
+          return MaterialPageRoute(
+            builder: (_) => PlaylistDetailScreen(playlist: playlist),
+            settings: routeSettings,
+          );
+        }
+        return null;
+
+      // Album detail — receives an Album as argument
+      case '/album':
+        final album = routeSettings.arguments;
+        if (album is Album) {
+          return MaterialPageRoute(
+            builder: (_) => AlbumDetailScreen(album: album),
+            settings: routeSettings,
+          );
+        }
+        return null;
+
       default:
         return null;
     }
-  }
-}
-
-/// Placeholder for playlist/album detail screens (to be implemented).
-class _PlaceholderDetailScreen extends StatelessWidget {
-  final String title;
-  const _PlaceholderDetailScreen({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: const Center(child: Text('Detail view coming soon')),
-    );
   }
 }
 
