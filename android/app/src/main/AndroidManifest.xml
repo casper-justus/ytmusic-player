@@ -33,7 +33,7 @@
         <application
         android:label="YTMusic Player"
         android:name="android.app.Application"
-        android:icon="@android:drawable/ic_menu_play_clip"
+        android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:extractNativeLibs="true"
         android:supportsRtl="true"
