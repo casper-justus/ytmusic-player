@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dart_ytmusic_api/yt_music.dart' as yt;
+import 'package:dart_ytmusic_api/utils/traverse.dart';
+import 'package:dart_ytmusic_api/utils/filters.dart';
 import '../providers/settings_provider.dart';
 
 class YtMusicService {
@@ -191,6 +193,45 @@ class YtMusicService {
   }
 
   // ---------------------------------------------------------------------------
+  //  Library — uses raw InnerTube browse since dart_ytmusic_api v1.3.6
+  //  doesn't expose getLibraryPlaylists() or getLikedSongs().
+  // ---------------------------------------------------------------------------
+
+  Future<List<Map<String, dynamic>>> getLibraryPlaylists() async {
+    await _ensureInitialized();
+    try {
+      final response = await _api!.constructRequest('browse', body: {
+        'browseId': 'FEmusic_library_playlists',
+      });
+      final items =
+          traverseList(response, ['musicResponsiveListItemRenderer']);
+      return items
+          .map((item) => _responsiveItemToPlaylist(item as dynamic))
+          .toList();
+    } catch (e, stack) {
+      debugPrint('YtMusicService: getLibraryPlaylists error: $e\n$stack');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLikedSongs() async {
+    await _ensureInitialized();
+    try {
+      final response = await _api!.constructRequest('browse', body: {
+        'browseId': 'FEmusic_liked_videos',
+      });
+      final items =
+          traverseList(response, ['musicResponsiveListItemRenderer']);
+      return items
+          .map((item) => _responsiveItemToSong(item as dynamic))
+          .toList();
+    } catch (e, stack) {
+      debugPrint('YtMusicService: getLikedSongs error: $e\n$stack');
+      return [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   //  Auth
   // ---------------------------------------------------------------------------
 
@@ -215,10 +256,106 @@ class YtMusicService {
   //  Type converters: typed objects → Map<String, dynamic>
   // ===========================================================================
 
+  /// Extracts flex‑column runs from a musicResponsiveListItemRenderer.
+  static List<dynamic> _flexRuns(dynamic item) =>
+      traverseList(item, ['flexColumns', 'runs'])
+          .expand((e) => e is List ? e : [e])
+          .toList();
+
+  /// Parses a musicResponsiveListItemRenderer that represents a playlist.
+  static Map<String, dynamic> _responsiveItemToPlaylist(dynamic item) {
+    final runs = _flexRuns(item);
+    final title =
+        runs.isNotEmpty ? traverseString(runs[0], ['text']) ?? '' : '';
+    final subtitle =
+        runs.length > 1 ? traverseString(runs[1], ['text']) ?? '' : '';
+
+    int trackCount = 0;
+    final countMatch = RegExp(r'^(\d+)').firstMatch(subtitle);
+    if (countMatch != null) {
+      trackCount = int.tryParse(countMatch.group(1) ?? '0') ?? 0;
+    }
+
+    return {
+      'id':
+          traverseString(item, ['navigationEndpoint', 'browseId']) ?? '',
+      'title': title,
+      'trackCount': trackCount,
+      'imageUrl': _bestThumbnailUrl(
+          traverseList(item, ['thumbnails']) as List),
+    };
+  }
+
+  /// Parses a musicResponsiveListItemRenderer that represents a song.
+  static Map<String, dynamic> _responsiveItemToSong(dynamic item) {
+    final runs = _flexRuns(item);
+    final titleEntry =
+        runs.firstWhere((r) => isTitle(r), orElse: () => runs.isNotEmpty ? runs[0] : null);
+    final artistEntry = runs.firstWhere((r) => isArtist(r), orElse: () => null);
+    final albumEntry = runs.firstWhere((r) => isAlbum(r), orElse: () => null);
+    final durationEntry = runs.firstWhere(
+        (r) => isDuration(r) && r != titleEntry,
+        orElse: () => null);
+
+    return {
+      'id':
+          traverseString(item, ['playlistItemData', 'videoId']) ??
+          traverseString(
+                  item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
+          '',
+      'videoId':
+          traverseString(item, ['playlistItemData', 'videoId']) ??
+          traverseString(
+                  item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
+          '',
+      'title': traverseString(titleEntry, ['text']) ?? '',
+      'artist': traverseString(artistEntry, ['text']) ?? '',
+      'artistId': traverseString(artistEntry, ['browseId']),
+      'album': traverseString(albumEntry, ['text']),
+      'albumId': traverseString(albumEntry, ['browseId']),
+      'duration': _parseDurationSeconds(durationEntry?['text'] as String?),
+      'thumbnails':
+          (traverseList(item, ['thumbnails']) as List)
+              .map((t) => _thumbnail(t as dynamic))
+              .toList(),
+    };
+  }
+
+  static int _parseDurationSeconds(String? text) {
+    if (text == null) return 0;
+    final parts = text.split(':');
+    if (parts.length == 2) {
+      return (int.tryParse(parts[0]) ?? 0) * 60 +
+          (int.tryParse(parts[1]) ?? 0);
+    } else if (parts.length == 3) {
+      return (int.tryParse(parts[0]) ?? 0) * 3600 +
+          (int.tryParse(parts[1]) ?? 0) * 60 +
+          (int.tryParse(parts[2]) ?? 0);
+    }
+    return 0;
+  }
+
+  static String? _bestThumbnailUrl(List thumbnails) {
+    if (thumbnails.isEmpty) return null;
+    String? best;
+    int bestH = 0;
+    for (final t in thumbnails) {
+      if (t is Map) {
+        final url = t['url'] as String?;
+        final h = (t['height'] ?? 0) as int;
+        if (url != null && h > bestH) {
+          bestH = h;
+          best = url;
+        }
+      }
+    }
+    return best;
+  }
+
   static Map<String, dynamic> _thumbnail(dynamic t) => {
-        'url': (t as dynamic).url,
-        'width': t.width,
-        'height': t.height,
+        'url': t is Map ? t['url'] : (t as dynamic).url,
+        'width': t is Map ? t['width'] : (t as dynamic).width,
+        'height': t is Map ? t['height'] : (t as dynamic).height,
       };
 
   static List<Map<String, dynamic>> _thumbnails(dynamic list) =>
