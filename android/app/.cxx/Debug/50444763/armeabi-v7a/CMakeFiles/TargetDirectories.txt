@@ -1,0 +1,2 @@
+/workspaces/ytmusic-player/android/app/.cxx/Debug/50444763/armeabi-v7a/CMakeFiles/edit_cache.dir
+/workspaces/ytmusic-player/android/app/.cxx/Debug/50444763/armeabi-v7a/CMakeFiles/rebuild_cache.dir

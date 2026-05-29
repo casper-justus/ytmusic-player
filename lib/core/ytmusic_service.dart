@@ -26,6 +26,7 @@ class YtMusicService {
       _loggedIn = _cookies.isNotEmpty;
       _initialized = true;
     } catch (e) {
+      debugPrint('YtMusicService: initialize error: $e');
       _initialized = true;
     }
   }
@@ -36,23 +37,23 @@ class YtMusicService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  //  Home
-  // ---------------------------------------------------------------------------
-
   Future<List<Map<String, dynamic>>> getHomeSections() async {
     await _ensureInitialized();
     try {
       final sections = await _api!.getHomeSections();
-      return sections.map((s) => _homeSectionToMap(s as dynamic)).toList().cast<Map<String, dynamic>>();
-    } catch (e) {
+      debugPrint('YtMusicService: got ${sections.length} home sections');
+      final result = sections.map((s) => _homeSectionToMap(s as dynamic)).toList().cast<Map<String, dynamic>>();
+      debugPrint('YtMusicService: mapped ${result.length} home sections');
+      for (final section in result) {
+        debugPrint('  section "${section["title"]}": ${(section["contents"] as List).length} items');
+      }
+      return result;
+    } catch (e, stack) {
+      debugPrint('YtMusicService: getHomeSections error: $e');
+      debugPrint(stack.toString());
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Stream URL extraction — uses YT Music API directly (no native plugin)
-  // ---------------------------------------------------------------------------
 
   Future<String?> getAudioStreamUrl(String videoId) async {
     await _ensureInitialized();
@@ -76,9 +77,11 @@ class YtMusicService {
         if (sig != null && sig.isNotEmpty) return sig;
       }
 
+      debugPrint('YtMusicService: no stream URL for videoId=$videoId (${formats.length} formats)');
       return null;
     } catch (e, stack) {
-      debugPrint('YtMusicService: getAudioStreamUrl error: $e\n$stack');
+      debugPrint('YtMusicService: getAudioStreamUrl error: $e');
+      debugPrint(stack.toString());
       return null;
     }
   }
@@ -92,7 +95,6 @@ class YtMusicService {
   String? _fmtStr(dynamic f, String key) {
     try { return (f[key] as String?) ?? (f[key]?.toString()); } catch (_) {}
     try {
-      // Some Format objects expose fields as properties
       switch (key) {
         case 'url': return (f as dynamic).url?.toString();
         case 'signatureCipher': return (f as dynamic).signatureCipher?.toString();
@@ -101,24 +103,18 @@ class YtMusicService {
     return null;
   }
 
-  // ---------------------------------------------------------------------------
-  //  Search
-  // ---------------------------------------------------------------------------
-
   Future<List<Map<String, dynamic>>> searchSongs(String query) async {
     await _ensureInitialized();
     try {
       final results = await _api!.searchSongs(query);
+      debugPrint('YtMusicService: search "$query" returned ${results.length} results');
       return results.map((r) => _songToMap(r as dynamic)).toList().cast<Map<String, dynamic>>();
     } catch (e, stack) {
-      debugPrint('YtMusicService: search error: $e\n$stack');
+      debugPrint('YtMusicService: search error: $e');
+      debugPrint(stack.toString());
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Albums
-  // ---------------------------------------------------------------------------
 
   Future<Map<String, dynamic>?> getAlbum(String albumId) async {
     await _ensureInitialized();
@@ -126,20 +122,18 @@ class YtMusicService {
       final album = await _api!.getAlbum(albumId);
       return _albumToMap(album as dynamic);
     } catch (e) {
+      debugPrint('YtMusicService: getAlbum error: $e');
       return null;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Playlists
-  // ---------------------------------------------------------------------------
 
   Future<Map<String, dynamic>?> getPlaylist(String playlistId) async {
     await _ensureInitialized();
     try {
       final playlist = await _api!.getPlaylist(playlistId);
-      return _playlistToMap(playlist as dynamic);
+      return _playlistFullToMap(playlist as dynamic);
     } catch (e) {
+      debugPrint('YtMusicService: getPlaylist error: $e');
       return null;
     }
   }
@@ -148,15 +142,13 @@ class YtMusicService {
     await _ensureInitialized();
     try {
       final videos = await _api!.getPlaylistVideos(playlistId);
+      debugPrint('YtMusicService: getPlaylistVideos returned ${videos.length} videos');
       return videos.map((v) => _videoToMap(v as dynamic)).toList().cast<Map<String, dynamic>>();
     } catch (e) {
+      debugPrint('YtMusicService: getPlaylistVideos error: $e');
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Artists
-  // ---------------------------------------------------------------------------
 
   Future<Map<String, dynamic>?> getArtist(String artistId) async {
     await _ensureInitialized();
@@ -164,6 +156,7 @@ class YtMusicService {
       final artist = await _api!.getArtist(artistId);
       return _artistToMap(artist as dynamic);
     } catch (e) {
+      debugPrint('YtMusicService: getArtist error: $e');
       return null;
     }
   }
@@ -174,13 +167,10 @@ class YtMusicService {
       final albums = await _api!.getArtistAlbums(artistId);
       return albums.map((a) => _albumDetailToMap(a as dynamic)).toList().cast<Map<String, dynamic>>();
     } catch (e) {
+      debugPrint('YtMusicService: getArtistAlbums error: $e');
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Up Next
-  // ---------------------------------------------------------------------------
 
   Future<List<Map<String, dynamic>>> getUpNext(String videoId) async {
     await _ensureInitialized();
@@ -188,14 +178,10 @@ class YtMusicService {
       final results = await _api!.getUpNexts(videoId);
       return results.map((r) => _upNextToMap(r as dynamic)).toList().cast<Map<String, dynamic>>();
     } catch (e) {
+      debugPrint('YtMusicService: getUpNext error: $e');
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Library — uses raw InnerTube browse since dart_ytmusic_api v1.3.6
-  //  doesn't expose getLibraryPlaylists() or getLikedSongs().
-  // ---------------------------------------------------------------------------
 
   Future<List<Map<String, dynamic>>> getLibraryPlaylists() async {
     await _ensureInitialized();
@@ -203,13 +189,15 @@ class YtMusicService {
       final response = await _api!.constructRequest('browse', body: {
         'browseId': 'FEmusic_library_playlists',
       });
-      final items =
-          traverseList(response, ['musicResponsiveListItemRenderer']);
+      debugPrint('YtMusicService: library playlists keys: ${response.keys}');
+      final items = traverseList(response, ['musicResponsiveListItemRenderer']);
+      debugPrint('YtMusicService: found ${items.length} playlist items');
       return items
           .map((item) => _responsiveItemToPlaylist(item as dynamic))
           .toList();
     } catch (e, stack) {
-      debugPrint('YtMusicService: getLibraryPlaylists error: $e\n$stack');
+      debugPrint('YtMusicService: getLibraryPlaylists error: $e');
+      debugPrint(stack.toString());
       return [];
     }
   }
@@ -220,20 +208,18 @@ class YtMusicService {
       final response = await _api!.constructRequest('browse', body: {
         'browseId': 'FEmusic_liked_videos',
       });
-      final items =
-          traverseList(response, ['musicResponsiveListItemRenderer']);
+      debugPrint('YtMusicService: liked songs keys: ${response.keys}');
+      final items = traverseList(response, ['musicResponsiveListItemRenderer']);
+      debugPrint('YtMusicService: found ${items.length} liked song items');
       return items
           .map((item) => _responsiveItemToSong(item as dynamic))
           .toList();
     } catch (e, stack) {
-      debugPrint('YtMusicService: getLikedSongs error: $e\n$stack');
+      debugPrint('YtMusicService: getLikedSongs error: $e');
+      debugPrint(stack.toString());
       return [];
     }
   }
-
-  // ---------------------------------------------------------------------------
-  //  Auth
-  // ---------------------------------------------------------------------------
 
   Future<bool> validateCookies() async {
     await _ensureInitialized();
@@ -241,6 +227,7 @@ class YtMusicService {
       await _api!.getHomeSections();
       return true;
     } catch (e) {
+      debugPrint('YtMusicService: validateCookies error: $e');
       return false;
     }
   }
@@ -252,23 +239,15 @@ class YtMusicService {
     _api = null;
   }
 
-  // ===========================================================================
-  //  Type converters: typed objects → Map<String, dynamic>
-  // ===========================================================================
-
-  /// Extracts flex‑column runs from a musicResponsiveListItemRenderer.
   static List<dynamic> _flexRuns(dynamic item) =>
       traverseList(item, ['flexColumns', 'runs'])
           .expand((e) => e is List ? e : [e])
           .toList();
 
-  /// Parses a musicResponsiveListItemRenderer that represents a playlist.
   static Map<String, dynamic> _responsiveItemToPlaylist(dynamic item) {
     final runs = _flexRuns(item);
-    final title =
-        runs.isNotEmpty ? traverseString(runs[0], ['text']) ?? '' : '';
-    final subtitle =
-        runs.length > 1 ? traverseString(runs[1], ['text']) ?? '' : '';
+    final title = runs.isNotEmpty ? traverseString(runs[0], ['text']) ?? '' : '';
+    final subtitle = runs.length > 1 ? traverseString(runs[1], ['text']) ?? '' : '';
 
     int trackCount = 0;
     final countMatch = RegExp(r'^(\d+)').firstMatch(subtitle);
@@ -277,20 +256,16 @@ class YtMusicService {
     }
 
     return {
-      'id':
-          traverseString(item, ['navigationEndpoint', 'browseId']) ?? '',
+      'id': traverseString(item, ['navigationEndpoint', 'browseId']) ?? '',
       'title': title,
       'trackCount': trackCount,
-      'imageUrl': _bestThumbnailUrl(
-          traverseList(item, ['thumbnails'])),
+      'imageUrl': _bestThumbnailUrl(traverseList(item, ['thumbnails'])),
     };
   }
 
-  /// Parses a musicResponsiveListItemRenderer that represents a song.
   static Map<String, dynamic> _responsiveItemToSong(dynamic item) {
     final runs = _flexRuns(item);
-    final titleEntry =
-        runs.firstWhere((r) => isTitle(r), orElse: () => runs.isNotEmpty ? runs[0] : null);
+    final titleEntry = runs.firstWhere((r) => isTitle(r), orElse: () => runs.isNotEmpty ? runs[0] : null);
     final artistEntry = runs.firstWhere((r) => isArtist(r), orElse: () => null);
     final albumEntry = runs.firstWhere((r) => isAlbum(r), orElse: () => null);
     final durationEntry = runs.firstWhere(
@@ -298,26 +273,17 @@ class YtMusicService {
         orElse: () => null);
 
     return {
-      'id':
-          traverseString(item, ['playlistItemData', 'videoId']) ??
-          traverseString(
-                  item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
-          '',
-      'videoId':
-          traverseString(item, ['playlistItemData', 'videoId']) ??
-          traverseString(
-                  item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ??
-          '',
+      'id': traverseString(item, ['playlistItemData', 'videoId']) ??
+          traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ?? '',
+      'videoId': traverseString(item, ['playlistItemData', 'videoId']) ??
+          traverseString(item, ['navigationEndpoint', 'watchEndpoint', 'videoId']) ?? '',
       'title': traverseString(titleEntry, ['text']) ?? '',
       'artist': traverseString(artistEntry, ['text']) ?? '',
       'artistId': traverseString(artistEntry, ['browseId']),
       'album': traverseString(albumEntry, ['text']),
       'albumId': traverseString(albumEntry, ['browseId']),
       'duration': _parseDurationSeconds(durationEntry?['text'] as String?),
-      'thumbnails':
-          traverseList(item, ['thumbnails'])
-              .map((t) => _thumbnail(t))
-              .toList(),
+      'thumbnails': traverseList(item, ['thumbnails']).map((t) => _thumbnail(t)).toList(),
     };
   }
 
@@ -325,8 +291,7 @@ class YtMusicService {
     if (text == null) return 0;
     final parts = text.split(':');
     if (parts.length == 2) {
-      return (int.tryParse(parts[0]) ?? 0) * 60 +
-          (int.tryParse(parts[1]) ?? 0);
+      return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
     } else if (parts.length == 3) {
       return (int.tryParse(parts[0]) ?? 0) * 3600 +
           (int.tryParse(parts[1]) ?? 0) * 60 +
@@ -353,92 +318,91 @@ class YtMusicService {
   }
 
   static Map<String, dynamic> _thumbnail(dynamic t) => {
-        'url': t is Map ? t['url'] : (t as dynamic).url,
-        'width': t is Map ? t['width'] : (t as dynamic).width,
-        'height': t is Map ? t['height'] : (t as dynamic).height,
-      };
+    'url': t is Map ? t['url'] : (t as dynamic).url,
+    'width': t is Map ? t['width'] : (t as dynamic).width,
+    'height': t is Map ? t['height'] : (t as dynamic).height,
+  };
 
   static List<Map<String, dynamic>> _thumbnails(dynamic list) =>
       (list as List?)?.map((t) => _thumbnail(t as dynamic)).toList() ?? [];
 
   static Map<String, dynamic> _songToMap(dynamic s) => {
-        'id': (s as dynamic).videoId,
-        'videoId': s.videoId,
-        'title': s.name,
-        'artist': s.artist.name,
-        'artistId': s.artist.artistId,
-        'album': s.album?.name,
-        'albumId': s.album?.albumId,
-        'duration': s.duration ?? 0,
-        'thumbnails': _thumbnails(s.thumbnails),
-      };
+    'id': (s as dynamic).videoId,
+    'videoId': s.videoId,
+    'title': s.name,
+    'artist': s.artist.name,
+    'artistId': s.artist.artistId,
+    'album': s.album?.name,
+    'albumId': s.album?.albumId,
+    'duration': s.duration ?? 0,
+    'thumbnails': _thumbnails(s.thumbnails),
+  };
 
   static Map<String, dynamic> _videoToMap(dynamic v) => {
-        'id': (v as dynamic).videoId,
-        'videoId': v.videoId,
-        'title': v.title,
-        'artist': v.artists is List
-            ? (v.artists as List).map((a) => (a as dynamic).name).join(', ')
-            : v.artist?.name ?? '',
-        'duration': v.duration ?? 0,
-        'thumbnails': _thumbnails(v.thumbnails),
-      };
+    'id': (v as dynamic).videoId,
+    'videoId': v.videoId,
+    'title': v.title,
+    'artist': v.artists is List
+        ? (v.artists as List).map((a) => (a as dynamic).name).join(', ')
+        : v.artist?.name ?? '',
+    'duration': v.duration ?? 0,
+    'thumbnails': _thumbnails(v.thumbnails),
+  };
 
   static Map<String, dynamic> _albumDetailToMap(dynamic a) => {
-        'id': (a as dynamic).albumId,
-        'browseId': a.albumId,
-        'playlistId': a.playlistId,
-        'title': a.name,
-        'artist': a.artist.name,
-        'artistId': a.artist.artistId,
-        'year': a.year,
-        'thumbnails': _thumbnails(a.thumbnails),
-      };
+    'id': (a as dynamic).albumId,
+    'browseId': a.albumId,
+    'playlistId': a.playlistId,
+    'title': a.name,
+    'artist': a.artist.name,
+    'artistId': a.artist.artistId,
+    'year': a.year,
+    'thumbnails': _thumbnails(a.thumbnails),
+  };
 
   static Map<String, dynamic> _albumToMap(dynamic a) => {
-        'id': (a as dynamic).albumId,
-        'browseId': a.albumId,
-        'playlistId': a.playlistId,
-        'title': a.name,
-        'artist': a.artist.name,
-        'artistId': a.artist.artistId,
-        'year': a.year,
-        'thumbnails': _thumbnails(a.thumbnails),
-        'tracks': (a.songs as List).map((s) => _songToMap(s as dynamic)).toList(),
-      };
+    'id': (a as dynamic).albumId,
+    'browseId': a.albumId,
+    'playlistId': a.playlistId,
+    'title': a.name,
+    'artist': a.artist.name,
+    'artistId': a.artist.artistId,
+    'year': a.year,
+    'thumbnails': _thumbnails(a.thumbnails),
+    'tracks': (a.songs as List).map((s) => _songToMap(s as dynamic)).toList(),
+  };
 
-  static Map<String, dynamic> _playlistToMap(dynamic p) => {
-        'id': (p as dynamic).playlistId,
-        'browseId': p.playlistId,
-        'title': p.name,
-        'artist': p.artist.name,
-        'artistId': p.artist.artistId,
-        'videoCount': p.videoCount,
-        'thumbnails': _thumbnails(p.thumbnails),
-      };
+  static Map<String, dynamic> _playlistFullToMap(dynamic p) => {
+    'id': (p as dynamic).playlistId,
+    'browseId': p.playlistId,
+    'title': p.name,
+    'artist': p.artist.name,
+    'artistId': p.artist.artistId,
+    'videoCount': p.videoCount,
+    'thumbnails': _thumbnails(p.thumbnails),
+  };
 
   static Map<String, dynamic> _artistToMap(dynamic a) => {
-        'id': (a as dynamic).artistId,
-        'browseId': a.artistId,
-        'artistId': a.artistId,
-        'title': a.name,
-        'thumbnails': _thumbnails(a.thumbnails),
-        'topSongs': (a.topSongs as List).map((s) => _songToMap(s as dynamic)).toList(),
-        'topAlbums': (a.topAlbums as List).map((al) => _albumDetailToMap(al as dynamic)).toList(),
-        'topSingles': (a.topSingles as List).map((s) => _albumDetailToMap(s as dynamic)).toList(),
-      };
+    'id': (a as dynamic).artistId,
+    'browseId': a.artistId,
+    'title': a.name,
+    'thumbnails': _thumbnails(a.thumbnails),
+    'topSongs': (a.topSongs as List).map((s) => _songToMap(s as dynamic)).toList(),
+    'topAlbums': (a.topAlbums as List).map((al) => _albumDetailToMap(al as dynamic)).toList(),
+    'topSingles': (a.topSingles as List).map((s) => _albumDetailToMap(s as dynamic)).toList(),
+  };
 
   static Map<String, dynamic> _upNextToMap(dynamic u) => {
-        'id': (u as dynamic).videoId,
-        'videoId': u.videoId,
-        'title': u.title,
-        'artist': u.artists.name,
-        'artistId': u.artists.artistId,
-        'album': u.album?.name,
-        'albumId': u.album?.albumId,
-        'duration': u.duration,
-        'thumbnails': _thumbnails(u.thumbnails),
-      };
+    'id': (u as dynamic).videoId,
+    'videoId': u.videoId,
+    'title': u.title,
+    'artist': u.artists.name,
+    'artistId': u.artists.artistId,
+    'album': u.album?.name,
+    'albumId': u.album?.albumId,
+    'duration': u.duration,
+    'thumbnails': _thumbnails(u.thumbnails),
+  };
 
   static Map<String, dynamic> _homeSectionToMap(dynamic s) {
     try {
@@ -448,7 +412,8 @@ class YtMusicService {
         'title': (s as dynamic).title?.toString() ?? '',
         'contents': contents.map((c) => _contentToMap(c as dynamic)).toList(),
       };
-    } catch (_) {
+    } catch (e) {
+      debugPrint('YtMusicService: _homeSectionToMap error: $e');
       return {'title': '', 'contents': <dynamic>[]};
     }
   }
@@ -464,11 +429,12 @@ class YtMusicService {
       return _albumToMap(item as dynamic);
     } catch (_) {}
     try {
-      return _playlistToMap(item as dynamic);
+      return _playlistFullToMap(item as dynamic);
     } catch (_) {}
     try {
       return _artistToMap(item as dynamic);
     } catch (_) {}
+    debugPrint('YtMusicService: _contentToMap could not map item type=${item.runtimeType}');
     return {'title': item.toString(), 'contents': <dynamic>[]};
   }
 }

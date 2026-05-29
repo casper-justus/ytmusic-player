@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
+import '../models/album.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/now_playing_bar.dart';
+import 'album_detail_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -75,6 +77,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Future<void> _loadHistory() async {
     final box = Hive.box<String>('search_history');
     setState(() => _history = box.values.toList().reversed.toList());
+  }
+
+  void _openAlbum(Track track) {
+    if (track.albumId == null || track.albumId!.isEmpty) return;
+    final album = Album(
+      id: track.albumId!,
+      name: track.album ?? 'Unknown Album',
+      artist: track.artist,
+      artistId: track.artistId,
+      imageUrl: track.albumArtUrl,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AlbumDetailScreen(album: album),
+      ),
+    );
   }
 
   @override
@@ -150,7 +168,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No results found for "${_searchController.text}"',
+              'No results found for  ',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[500]),
             ),
           ],
@@ -165,10 +183,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return _SearchResultTile(
           track: track,
           onTap: () => ref.read(playerStateProvider.notifier).playTrack(track),
+          onAlbumTap: track.albumId != null && track.albumId!.isNotEmpty
+              ? () => _openAlbum(track)
+              : null,
           onAddToQueue: () {
             ref.read(playerStateProvider.notifier).addToQueue([track]);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${track.title} added to queue')),
+              const SnackBar(content: Text(' added to queue')),
             );
           },
         );
@@ -259,52 +280,91 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 class _SearchResultTile extends StatelessWidget {
   final Track track;
   final VoidCallback onTap;
+  final VoidCallback? onAlbumTap;
   final VoidCallback onAddToQueue;
 
   const _SearchResultTile({
     required this.track,
     required this.onTap,
+    this.onAlbumTap,
     required this.onAddToQueue,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ListTile(
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: track.albumArtUrl != null
-            ? CachedNetworkImage(
-                imageUrl: track.albumArtUrl!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
+      leading: GestureDetector(
+        onTap: onAlbumTap ?? onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: track.albumArtUrl != null
+              ? CachedNetworkImage(
+                  imageUrl: track.albumArtUrl!,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.music_note, size: 24),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.music_note, size: 24),
+                  ),
+                )
+              : Container(
+                  width: 48,
+                  height: 48,
                   color: Colors.grey[800],
                   child: const Icon(Icons.music_note, size: 24),
                 ),
-                errorWidget: (_, __, ___) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.music_note, size: 24),
-                ),
-              )
-            : Container(
-                width: 48,
-                height: 48,
-                color: Colors.grey[800],
-                child: const Icon(Icons.music_note, size: 24),
-              ),
+        ),
       ),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        track.artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+      subtitle: Row(
+        children: [
+          Flexible(
+            child: Text(
+              track.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+          ),
+          if (track.album != null && track.album!.isNotEmpty) ...[
+            Text(' • ', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            GestureDetector(
+              onTap: onAlbumTap,
+              child: Text(
+                track.album!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: theme.colorScheme.primary,
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.add_circle_outline),
-        onPressed: onAddToQueue,
-        tooltip: 'Add to queue',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onAlbumTap != null)
+            IconButton(
+              icon: Icon(Icons.album_outlined, size: 20, color: Colors.grey[400]),
+              onPressed: onAlbumTap,
+              tooltip: 'View album',
+            ),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: onAddToQueue,
+            tooltip: 'Add to queue',
+          ),
+        ],
       ),
       onTap: onTap,
     );

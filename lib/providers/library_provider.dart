@@ -72,7 +72,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load home: $e',
+          error: 'Failed to load home: ',
         );
       }
     }
@@ -99,7 +99,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load playlists: $e',
+          error: 'Failed to load playlists: ',
         );
       }
     }
@@ -121,7 +121,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load liked songs: $e',
+          error: 'Failed to load liked songs: ',
         );
       }
     }
@@ -132,20 +132,17 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final results = await _ytMusic.searchSongs(query);
       return results.map((r) => _parseTrack(r)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: search error: $e');
+      debugPrint('LibraryNotifier: search error: ');
       return [];
     }
   }
 
   Future<List<Track>> getPlaylistTracks(String playlistId) async {
     try {
-      final playlist = await _ytMusic.getPlaylist(playlistId);
-      if (playlist == null) return [];
-
-      final tracks = playlist['tracks'] as List<dynamic>? ?? [];
-      return tracks.map((t) => _parseTrack(t as Map<String, dynamic>)).toList();
+      final videos = await _ytMusic.getPlaylistVideos(playlistId);
+      return videos.map((v) => _parseTrack(v)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: getPlaylistTracks error: $e');
+      debugPrint('LibraryNotifier: getPlaylistTracks error: ');
       return [];
     }
   }
@@ -158,7 +155,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final tracks = album['tracks'] as List<dynamic>? ?? [];
       return tracks.map((t) => _parseTrack(t as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: getAlbumTracks error: $e');
+      debugPrint('LibraryNotifier: getAlbumTracks error: ');
       return [];
     }
   }
@@ -196,12 +193,13 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     if (thumbnails == null) return null;
     if (thumbnails is List) {
       if (thumbnails.isEmpty) return null;
-      thumbnails.sort((a, b) {
+      List sorted = List.from(thumbnails);
+      sorted.sort((a, b) {
         final aRes = ((a as Map)['height'] ?? 0) as int;
         final bRes = ((b as Map)['height'] ?? 0) as int;
         return bRes.compareTo(aRes);
       });
-      return (thumbnails.first as Map)['url'] as String?;
+      return (sorted.first as Map)['url'] as String?;
     }
     return null;
   }

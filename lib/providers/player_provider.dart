@@ -160,9 +160,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (track.streamUrl == null && track.videoId.isNotEmpty) {
         String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
         // Fallback to yt-dlp extractor plugin if API fails
-        if (streamUrl == null) {
-          streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
-        }
+        streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
         if (streamUrl != null) {
           resolvedTrack = track.copyWith(streamUrl: streamUrl);
         }
@@ -190,9 +188,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } else if (track.videoId.isNotEmpty) {
         try {
           String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
-          if (streamUrl == null) {
-            streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
-          }
+          streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
           resolvedTracks.add(track.copyWith(streamUrl: streamUrl));
         } catch (e) {
           resolvedTracks.add(track);

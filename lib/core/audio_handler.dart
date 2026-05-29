@@ -1,35 +1,19 @@
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/track.dart';
 
-/// AudioHandler that manages background playback, queue management,
-/// and native Android media notifications.
-///
-/// This is the central audio controller for the app. It:
-/// - Manages a queue of tracks (via [addTracks], [playTrack])
-/// - Streams audio via just_audio (ExoPlayer under the hood)
-/// - Publishes playback state updates for the UI
-/// - Handles media notifications, lock screen controls
-/// - Responds to headset/media button events
 class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
-
-  /// The current queue of tracks (our app-level model).
   List<Track> _queue = [];
-
-  /// Index of the currently playing (or queued) track in [_queue].
   int _currentIndex = 0;
-
-  /// Whether the handler has been initialized.
   bool _initialized = false;
 
-  /// Stream of current track updates for Riverpod/UI.
   final _currentTrackController = StreamController<Track?>.broadcast();
   Stream<Track?> get currentTrackStream => _currentTrackController.stream;
 
-  /// Stream of queue changes (app-level Track list).
   final _queueController = StreamController<List<Track>>.broadcast();
   Stream<List<Track>> get queueStream => _queueController.stream;
 
@@ -37,14 +21,12 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     _setupPlayerListeners();
   }
 
-  /// Initialize the player and audio session.
   Future<void> initialize() async {
     if (_initialized) return;
     await _player.setVolume(1.0);
     _initialized = true;
   }
 
-  /// Set up internal player event listeners that forward to [playbackState].
   void _setupPlayerListeners() {
     _player.playbackEventStream.listen(_onPlaybackEvent);
     _player.processingStateStream.listen(_onProcessingState);
@@ -103,11 +85,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
   }
 
-  // =======================================================================
-  //  Public API — Queue Management
-  // =======================================================================
-
-  /// Replace the entire queue with [tracks] and start playing [startIndex].
   Future<void> setQueue(List<Track> tracks, {int startIndex = 0}) async {
     _queue = List.from(tracks);
     _currentIndex = startIndex.clamp(0, _queue.length - 1);
@@ -119,7 +96,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
   }
 
-  /// Add [tracks] to the end of the queue.
   Future<void> addTracks(List<Track> tracks) async {
     _queue.addAll(tracks);
     _queueController.add(_queue);
@@ -131,14 +107,12 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
   }
 
-  /// Play a specific track by index in the queue.
   Future<void> playAtIndex(int index) async {
     if (index < 0 || index >= _queue.length) return;
     _currentIndex = index;
     await _playCurrent();
   }
 
-  /// Play a specific [track] immediately, optionally adding it to the queue.
   Future<void> playTrack(Track track) async {
     final existingIndex = _queue.indexWhere((t) => t.id == track.id);
     if (existingIndex >= 0) {
@@ -151,10 +125,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
     await _playCurrent();
   }
-
-  // =======================================================================
-  //  Transport Controls (overrides from BaseAudioHandler)
-  // =======================================================================
 
   @override
   Future<void> play() => _player.play();
@@ -197,17 +167,11 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
   }
 
-
-  // =======================================================================
-  //  Internal
-  // =======================================================================
-
   Future<void> _playCurrent() async {
     if (_queue.isEmpty) return;
 
     final track = _queue[_currentIndex];
     _currentTrackController.add(track);
-
     mediaItem.add(_trackToMediaItem(track));
 
     AudioSource? source;
@@ -220,18 +184,24 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
 
     if (source == null) {
+      debugPrint('AudioHandler: no audio source for track  () — skipping');
       await _advanceToNext();
       return;
     }
 
-    await _player.setAudioSource(source);
-    await _player.play();
+    try {
+      await _player.setAudioSource(source);
+      await _player.play();
+    } catch (e) {
+      debugPrint('AudioHandler: playback failed for track  ()');
+      debugPrint('');
+      await _advanceToNext();
+    }
   }
 
   Future<void> _advanceToNext() async {
     if (_queue.isEmpty) return;
 
-    // Access repeatMode from base class; fall back to none if unavailable
     final currentRepeatMode = playbackState.valueOrNull?.repeatMode ?? AudioServiceRepeatMode.none;
 
     if (currentRepeatMode == AudioServiceRepeatMode.one) {
@@ -254,7 +224,6 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     await _playCurrent();
   }
 
-  /// Convert a Track to audio_service's MediaItem.
   MediaItem _trackToMediaItem(Track track) {
     return MediaItem(
       id: track.id,
@@ -266,16 +235,11 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     );
   }
 
-  /// Dispose all resources.
   Future<void> dispose() async {
     await _player.dispose();
     await _currentTrackController.close();
     await _queueController.close();
   }
-
-  // =======================================================================
-  //  Accessors
-  // =======================================================================
 
   Track? get currentTrack =>
       _queue.isNotEmpty && _currentIndex < _queue.length
@@ -283,22 +247,14 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
           : null;
 
   int get currentIndex => _currentIndex;
-
   bool get isPlaying => _player.playing;
-
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<bool> get playingStream => _player.playingStream;
-
-  /// The stream URL for the current track, or null if none.
   String? get currentStreamUrl => currentTrack?.streamUrl;
 
   Future<void> setVolume(double volume) => _player.setVolume(volume);
 }
-
-// =======================================================================
-//  Riverpod provider
-// =======================================================================
 
 final audioHandlerProvider = Provider<MusicAudioHandler>((ref) {
   final handler = MusicAudioHandler();

@@ -78,7 +78,7 @@ Future<void> _initHive() async {
 Future<MusicAudioHandler> _initAudioService() async {
   final handler = await AudioService.init<MusicAudioHandler>(
     builder: () => MusicAudioHandler(),
-    config: AudioServiceConfig(
+    config: const AudioServiceConfig(
       // Notification channel for Android 13+
       androidNotificationChannelId: 'com.ytmusic.player.music_channel',
       androidNotificationChannelName: 'Music Playback',
@@ -94,7 +94,7 @@ Future<MusicAudioHandler> _initAudioService() async {
       androidNotificationIcon: 'mipmap/ic_launcher',
 
       // Fast-forward skip interval
-      fastForwardInterval: const Duration(seconds: 10),
+      fastForwardInterval: Duration(seconds: 10),
     ),
   );
 
