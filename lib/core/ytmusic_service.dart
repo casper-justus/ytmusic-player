@@ -60,8 +60,8 @@ class YtMusicService {
       final song = await _api!.getSong(videoId);
 
       final formats = <dynamic>[];
-      if (song.formats != null) formats.addAll(song.formats! as List);
-      if (song.adaptiveFormats != null) formats.addAll(song.adaptiveFormats! as List);
+      formats.addAll(song.formats);
+      formats.addAll(song.adaptiveFormats);
 
       formats.sort((a, b) {
         final aBitrate = _fmtBitrate(a);
@@ -282,7 +282,7 @@ class YtMusicService {
       'title': title,
       'trackCount': trackCount,
       'imageUrl': _bestThumbnailUrl(
-          traverseList(item, ['thumbnails']) as List),
+          traverseList(item, ['thumbnails'])),
     };
   }
 
@@ -315,8 +315,8 @@ class YtMusicService {
       'albumId': traverseString(albumEntry, ['browseId']),
       'duration': _parseDurationSeconds(durationEntry?['text'] as String?),
       'thumbnails':
-          (traverseList(item, ['thumbnails']) as List)
-              .map((t) => _thumbnail(t as dynamic))
+          traverseList(item, ['thumbnails'])
+              .map((t) => _thumbnail(t))
               .toList(),
     };
   }
