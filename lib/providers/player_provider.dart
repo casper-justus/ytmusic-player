@@ -159,6 +159,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // Try YT Music API stream URL first (pure Dart, no native plugin needed)
       if (track.streamUrl == null && track.videoId.isNotEmpty) {
         String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+        // Fallback to TVHTML5 client if primary API doesn't return direct URLs
+        streamUrl ??= await _ytMusic.getAudioStreamUrlFallback(track.videoId);
         // Fallback to yt-dlp extractor plugin if API fails
         streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
         if (streamUrl != null) {
@@ -172,7 +174,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isLoading: false,
       );
     } catch (e) {
-      debugPrint('PlayerNotifier: error playing track: $e');
+      debugPrint("PlayerNotifier: error playing track: $e");
       state = state.copyWith(isLoading: false);
     }
   }
@@ -188,6 +190,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } else if (track.videoId.isNotEmpty) {
         try {
           String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+          streamUrl ??= await _ytMusic.getAudioStreamUrlFallback(track.videoId);
           streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
           resolvedTracks.add(track.copyWith(streamUrl: streamUrl));
         } catch (e) {

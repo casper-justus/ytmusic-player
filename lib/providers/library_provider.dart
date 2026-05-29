@@ -72,7 +72,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load home: ',
+          error: "Failed to load home: $e",
         );
       }
     }
@@ -99,7 +99,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load playlists: ',
+          error: "Failed to load playlists: $e",
         );
       }
     }
@@ -121,7 +121,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          error: 'Failed to load liked songs: ',
+          error: "Failed to load liked songs: $e",
         );
       }
     }
@@ -132,7 +132,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final results = await _ytMusic.searchSongs(query);
       return results.map((r) => _parseTrack(r)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: search error: ');
+      debugPrint("LibraryNotifier: search error: $e");
       return [];
     }
   }
@@ -142,7 +142,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final videos = await _ytMusic.getPlaylistVideos(playlistId);
       return videos.map((v) => _parseTrack(v)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: getPlaylistTracks error: ');
+      debugPrint("LibraryNotifier: getPlaylistTracks error: $e");
       return [];
     }
   }
@@ -155,7 +155,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final tracks = album['tracks'] as List<dynamic>? ?? [];
       return tracks.map((t) => _parseTrack(t as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('LibraryNotifier: getAlbumTracks error: ');
+      debugPrint("LibraryNotifier: getAlbumTracks error: $e");
       return [];
     }
   }

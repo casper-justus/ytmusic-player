@@ -184,7 +184,7 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     }
 
     if (source == null) {
-      debugPrint('AudioHandler: no audio source for track  () — skipping');
+      debugPrint("AudioHandler: no audio source for track ${track.title} — skipping");
       await _advanceToNext();
       return;
     }
@@ -193,8 +193,8 @@ class MusicAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
       await _player.setAudioSource(source);
       await _player.play();
     } catch (e) {
-      debugPrint('AudioHandler: playback failed for track  ()');
-      debugPrint('');
+      debugPrint("AudioHandler: playback failed for track ${track.title}");
+      debugPrint("AudioHandler: error: $e");
       await _advanceToNext();
     }
   }
