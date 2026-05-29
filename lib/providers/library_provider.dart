@@ -62,11 +62,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     try {
       final sections = await _ytMusic.getHomeSections();
       if (mounted) {
-        state = state.copyWith(
-          homeSections: sections,
-          isLoading: false,
-          isLoggedIn: _ytMusic.isLoggedIn,
-        );
+        if (_ytMusic.cookiesExpired) {
+          state = state.copyWith(
+            homeSections: sections,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+            error: 'Session expired. Please sign in again.',
+          );
+        } else {
+          state = state.copyWith(
+            homeSections: sections,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -89,11 +98,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         trackCount: p['trackCount'] as int? ?? 0,
       )).toList();
       if (mounted) {
-        state = state.copyWith(
-          playlists: playlists,
-          isLoading: false,
-          isLoggedIn: _ytMusic.isLoggedIn,
-        );
+        if (_ytMusic.cookiesExpired) {
+          state = state.copyWith(
+            playlists: playlists,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+            error: 'Session expired. Please sign in again.',
+          );
+        } else {
+          state = state.copyWith(
+            playlists: playlists,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -111,11 +129,20 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final raw = await _ytMusic.getLikedSongs();
       final tracks = raw.map((s) => _parseTrack(s)).toList();
       if (mounted) {
-        state = state.copyWith(
-          likedSongs: tracks,
-          isLoading: false,
-          isLoggedIn: _ytMusic.isLoggedIn,
-        );
+        if (_ytMusic.cookiesExpired) {
+          state = state.copyWith(
+            likedSongs: tracks,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+            error: 'Session expired. Please sign in again.',
+          );
+        } else {
+          state = state.copyWith(
+            likedSongs: tracks,
+            isLoading: false,
+            isLoggedIn: _ytMusic.isLoggedIn,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -139,7 +166,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
 
   Future<List<Track>> getPlaylistTracks(String playlistId) async {
     try {
-      final videos = await _ytMusic.getPlaylistVideos(playlistId);
+      final videos = await _ytMusic.getPlaylistVideosFull(playlistId);
       return videos.map((v) => _parseTrack(v)).toList();
     } catch (e) {
       debugPrint("LibraryNotifier: getPlaylistTracks error: $e");

@@ -13,6 +13,10 @@ class YtMusicService {
   bool _loggedIn = false;
   bool get isLoggedIn => _loggedIn || _cookies.isNotEmpty;
 
+  bool _cookiesExpired = false;
+  bool get cookiesExpired => _cookiesExpired;
+  void clearCookiesExpired() => _cookiesExpired = false;
+
   Future<void> initialize({String? cookies}) async {
     if (cookies != null) _cookies = cookies;
     if (_cookies.isNotEmpty) _loggedIn = true;
@@ -42,11 +46,17 @@ class YtMusicService {
     try {
       final sections = await _api!.getHomeSections();
       debugPrint('YtMusicService: got ${sections.length} home sections');
+      _cookiesExpired = false;
       final result = sections
           .map((s) => _homeSectionToMap(s as dynamic))
           .toList()
           .cast<Map<String, dynamic>>();
       debugPrint('YtMusicService: mapped ${result.length} home sections');
+      // Detect expired cookies: if logged in but got empty results, cookies may be expired
+      if (_cookies.isNotEmpty && result.isEmpty) {
+        debugPrint('YtMusicService: got empty home sections despite having cookies - may be expired');
+        _cookiesExpired = true;
+      }
       for (final section in result) {
         debugPrint(
             '  section "${section["title"]}": ${(section["contents"] as List).length} items');
@@ -253,6 +263,55 @@ class YtMusicService {
     }
   }
 
+  /// Get playlist videos with full metadata (including album) using raw browse response.
+  /// Unlike getPlaylistVideos() which returns VideoDetailed (no album fields), this
+  /// parses the raw InnerTube response to extract album info from flex columns.
+  Future<List<Map<String, dynamic>>> getPlaylistVideosFull(
+      String playlistId) async {
+    await _ensureInitialized();
+    try {
+      final browseId = playlistId.startsWith('PL') ? 'VL$playlistId' : playlistId;
+      final response = await _api!.constructRequest('browse', body: {
+        'browseId': browseId,
+      });
+
+      final items = traverseList(
+        response,
+        ['musicPlaylistShelfRenderer', 'musicResponsiveListItemRenderer'],
+      );
+
+      // Handle continuation tokens for paginated playlists
+      dynamic continuation = traverse(response, ['continuation']);
+      if (continuation is List) {
+        continuation = continuation.isNotEmpty ? continuation[0] : null;
+      }
+      while (continuation != null) {
+        final moreData = await _api!.constructRequest(
+          'browse',
+          query: {'continuation': continuation.toString()},
+        );
+        items.addAll(
+          traverseList(moreData, ['musicResponsiveListItemRenderer']),
+        );
+        continuation = traverse(moreData, ['continuation']);
+        if (continuation is List) {
+          continuation = continuation.isNotEmpty ? continuation[0] : null;
+        }
+      }
+
+      debugPrint(
+          'YtMusicService: getPlaylistVideosFull found ${items.length} items');
+      return items
+          .map((item) => _responsiveItemToSong(item as dynamic))
+          .toList();
+    } catch (e, stack) {
+      debugPrint('YtMusicService: getPlaylistVideosFull error: ${e}');
+      debugPrint(stack.toString());
+      // Fall back to typed API
+      return getPlaylistVideos(playlistId);
+    }
+  }
+
   Future<Map<String, dynamic>?> getArtist(String artistId) async {
     await _ensureInitialized();
     try {
@@ -303,6 +362,11 @@ class YtMusicService {
       final items =
           traverseList(response, ['musicResponsiveListItemRenderer']);
       debugPrint('YtMusicService: found ${items.length} playlist items');
+      // Detect expired cookies
+      if (_cookies.isNotEmpty && items.isEmpty) {
+        debugPrint('YtMusicService: got empty library playlists despite having cookies - may be expired');
+        _cookiesExpired = true;
+      }
       return items
           .map((item) => _responsiveItemToPlaylist(item as dynamic))
           .toList();
@@ -323,6 +387,11 @@ class YtMusicService {
       final items =
           traverseList(response, ['musicResponsiveListItemRenderer']);
       debugPrint('YtMusicService: found ${items.length} liked song items');
+      // Detect expired cookies
+      if (_cookies.isNotEmpty && items.isEmpty) {
+        debugPrint('YtMusicService: got empty liked songs despite having cookies - may be expired');
+        _cookiesExpired = true;
+      }
       return items
           .map((item) => _responsiveItemToSong(item as dynamic))
           .toList();
@@ -460,8 +529,8 @@ class YtMusicService {
         'id': (s as dynamic).videoId,
         'videoId': s.videoId,
         'title': s.name,
-        'artist': s.artist.name,
-        'artistId': s.artist.artistId,
+        'artist': s.artist?.name ?? "Unknown Artist",
+        'artistId': s.artist?.artistId,
         'album': s.album?.name,
         'albumId': s.album?.albumId,
         'duration': s.duration ?? 0,
@@ -486,8 +555,8 @@ class YtMusicService {
         'browseId': a.albumId,
         'playlistId': a.playlistId,
         'title': a.name,
-        'artist': a.artist.name,
-        'artistId': a.artist.artistId,
+        'artist': a.artist?.name ?? "Unknown Artist",
+        'artistId': a.artist?.artistId,
         'year': a.year,
         'thumbnails': _thumbnails(a.thumbnails),
       };
@@ -497,8 +566,8 @@ class YtMusicService {
         'browseId': a.albumId,
         'playlistId': a.playlistId,
         'title': a.name,
-        'artist': a.artist.name,
-        'artistId': a.artist.artistId,
+        'artist': a.artist?.name ?? "Unknown Artist",
+        'artistId': a.artist?.artistId,
         'year': a.year,
         'thumbnails': _thumbnails(a.thumbnails),
         'tracks': (a.songs as List)
@@ -510,8 +579,8 @@ class YtMusicService {
         'id': (p as dynamic).playlistId,
         'browseId': p.playlistId,
         'title': p.name,
-        'artist': p.artist.name,
-        'artistId': p.artist.artistId,
+        'artist': p.artist?.name ?? "Unknown Artist",
+        'artistId': p.artist?.artistId,
         'videoCount': p.videoCount,
         'thumbnails': _thumbnails(p.thumbnails),
       };

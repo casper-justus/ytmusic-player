@@ -31,6 +31,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (prev?.isLoggedIn != next.isLoggedIn && next.isLoggedIn) {
         ref.read(libraryProvider.notifier).loadHomeSections();
       }
+      // Show error as SnackBar (e.g., "Session expired")
+      if (next.error != null && prev?.error != next.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(next.error!),
+                duration: const Duration(seconds: 6),
+                action: SnackBarAction(
+                  label: 'Sign In',
+                  onPressed: () => Navigator.pushNamed(context, '/login'),
+                ),
+              ),
+            );
+          }
+        });
+      }
     });
 
     return Scaffold(

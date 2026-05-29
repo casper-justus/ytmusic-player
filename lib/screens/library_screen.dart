@@ -40,6 +40,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
+    ref.listen(libraryProvider, (prev, next) {
+      if (next.error != null && prev?.error != next.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(next.error!),
+                duration: const Duration(seconds: 6),
+                action: SnackBarAction(
+                  label: 'Sign In',
+                  onPressed: () => Navigator.pushNamed(context, '/login'),
+                ),
+              ),
+            );
+          }
+        });
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

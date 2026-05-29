@@ -158,11 +158,29 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       // Try YT Music API stream URL first (pure Dart, no native plugin needed)
       if (track.streamUrl == null && track.videoId.isNotEmpty) {
-        String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+            debugPrint('PlayerProvider: resolving stream URL for ${track.videoId}...');
+    String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+    if (streamUrl != null) {
+      debugPrint('PlayerProvider: got stream URL via dart_ytmusic_api');
+    } else {
+      debugPrint('PlayerProvider: fallback to TVHTML5...');
+      streamUrl = await _ytMusic.getAudioStreamUrlFallback(track.videoId);
+      if (streamUrl != null) {
+        debugPrint('PlayerProvider: got stream URL via TVHTML5 fallback');
+      } else {
+        debugPrint('PlayerProvider: fallback to yt-dlp...');
+        streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+        if (streamUrl != null) {
+          debugPrint('PlayerProvider: got stream URL via yt-dlp');
+        } else {
+          debugPrint('PlayerProvider: all stream URL resolution strategies failed');
+        }
+      }
+    }
         // Fallback to TVHTML5 client if primary API doesn't return direct URLs
-        streamUrl ??= await _ytMusic.getAudioStreamUrlFallback(track.videoId);
+        
         // Fallback to yt-dlp extractor plugin if API fails
-        streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
+        
         if (streamUrl != null) {
           resolvedTrack = track.copyWith(streamUrl: streamUrl);
         }
@@ -189,9 +207,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         resolvedTracks.add(track);
       } else if (track.videoId.isNotEmpty) {
         try {
-          String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
-          streamUrl ??= await _ytMusic.getAudioStreamUrlFallback(track.videoId);
-          streamUrl ??= await _ytdlp.getAudioStreamUrl(track.videoId);
+              debugPrint('PlayerProvider: resolving stream URL for ${track.videoId}...');
+    String? streamUrl = await _ytMusic.getAudioStreamUrl(track.videoId);
+    if (streamUrl != null) {
+      debugPrint('PlayerProvider: got stream URL via dart_ytmusic_api');
+    } else {
+      debugPrint('PlayerProvider: fallback to TVHTML5...');
+      streamUrl = await _ytMusic.getAudioStreamUrlFallback(track.videoId);
+      if (streamUrl != null) {
+        debugPrint('PlayerProvider: got stream URL via TVHTML5 fallback');
+      } else {
+        debugPrint('PlayerProvider: fallback to yt-dlp...');
+        streamUrl = await _ytdlp.getAudioStreamUrl(track.videoId);
+        if (streamUrl != null) {
+          debugPrint('PlayerProvider: got stream URL via yt-dlp');
+        } else {
+          debugPrint('PlayerProvider: all stream URL resolution strategies failed');
+        }
+      }
+    }
+          
+          
           resolvedTracks.add(track.copyWith(streamUrl: streamUrl));
         } catch (e) {
           resolvedTracks.add(track);
