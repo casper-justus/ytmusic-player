@@ -70,9 +70,7 @@
                 <data android:scheme="https" android:host="youtube.com" />
                 <data android:scheme="vnd.youtube" />
             </intent-filter>
-        </activity>
 
-        <meta-data android:name="com.ryanheise.audioservice.notification_icon" android:resource="@drawable/ic_notification"/>
         <meta-data android:name="com.google.android.gms.cast.FRAMEWORK_FEATURES_HELPER_VALUE" android:value="com.google.android.gms.cast.framework.MEDIA_ROUTE_BUTTON"/>
 
         <!-- audio_service background playback -->
