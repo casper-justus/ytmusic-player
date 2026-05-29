@@ -72,6 +72,9 @@
             </intent-filter>
         </activity>
 
+        <meta-data android:name="com.ryanghe.audio_service.icon" android:resource="@drawable/ic_notification"/>
+        <meta-data android:name="com.google.android.gms.cast.FRAMEWORK_FEATURES_HELPER_VALUE" android:value="com.google.android.gms.cast.framework.MEDIA_ROUTE_BUTTON"/>
+
         <!-- audio_service background playback -->
         <service
             android:name="com.ryanheise.audioservice.AudioService"

@@ -67,13 +67,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  bool _isCompleting = false;
   void _completeLogin(String cookies) {
+    if (_isCompleting) return;
+    _isCompleting = true;
+    _pollTimer?.cancel();
+    
     ref.read(settingsProvider.notifier).setCookies(cookies);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully signed in to YouTube Music')),
       );
-      Navigator.pop(context);
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
     }
   }
 

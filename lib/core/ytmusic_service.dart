@@ -581,7 +581,7 @@ class YtMusicService {
         'title': p.name,
         'artist': p.artist?.name ?? "Unknown Artist",
         'artistId': p.artist?.artistId,
-        'videoCount': p.videoCount,
+        'videoCount': 0,
         'thumbnails': _thumbnails(p.thumbnails),
       };
 
