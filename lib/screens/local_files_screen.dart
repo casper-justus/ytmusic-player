@@ -24,14 +24,11 @@ class _LocalFilesScreenState extends ConsumerState<LocalFilesScreen> {
     final service = ref.read(localMediaServiceProvider);
     if (service.scanned && service.localTracks.isNotEmpty) return;
 
+    final audioGranted = await Permission.audio.isGranted;
     final storageGranted = await Permission.storage.isGranted;
-    final manageGranted = await Permission.manageExternalStorage.isGranted;
 
-    if (!storageGranted && !manageGranted) {
-      final result = await Permission.manageExternalStorage.request();
-      if (!result.isGranted) {
-        await Permission.storage.request();
-      }
+    if (!audioGranted && !storageGranted) {
+      await Permission.audio.request();
     }
 
     await service.scanLocalFiles(includeExternal: true);

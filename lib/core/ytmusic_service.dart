@@ -57,25 +57,21 @@ class YtMusicService {
     try {
       final song = await _api!.getSong(videoId);
 
-      final formats = <Map<String, dynamic>>[];
-      for (final f in (song.formats as List<dynamic>? ?? [])) {
-        formats.add(f as Map<String, dynamic>);
-      }
-      for (final f in (song.adaptiveFormats as List<dynamic>? ?? [])) {
-        formats.add(f as Map<String, dynamic>);
-      }
+      final formats = <dynamic>[];
+      if (song.formats != null) formats.addAll(song.formats! as List);
+      if (song.adaptiveFormats != null) formats.addAll(song.adaptiveFormats! as List);
 
       formats.sort((a, b) {
-        final aBitrate = (a['bitrate'] ?? a['averageBitrate'] ?? 0) as num;
-        final bBitrate = (b['bitrate'] ?? b['averageBitrate'] ?? 0) as num;
+        final aBitrate = _fmtBitrate(a);
+        final bBitrate = _fmtBitrate(b);
         return bBitrate.compareTo(aBitrate);
       });
 
       for (final fmt in formats) {
-        final url = fmt['url'] as String?;
+        final url = _fmtStr(fmt, 'url');
         if (url != null && url.isNotEmpty) return url;
-        final decodedUrl = fmt['signatureCipher'] as String?;
-        if (decodedUrl != null && decodedUrl.isNotEmpty) return decodedUrl;
+        final sig = _fmtStr(fmt, 'signatureCipher');
+        if (sig != null && sig.isNotEmpty) return sig;
       }
 
       return null;
@@ -83,6 +79,24 @@ class YtMusicService {
       debugPrint('YtMusicService: getAudioStreamUrl error: $e\n$stack');
       return null;
     }
+  }
+
+  num _fmtBitrate(dynamic f) {
+    try { return (f.bitrate ?? f.averageBitrate ?? 0) as num; } catch (_) {}
+    try { return (f['bitrate'] ?? f['averageBitrate'] ?? 0) as num; } catch (_) {}
+    return 0;
+  }
+
+  String? _fmtStr(dynamic f, String key) {
+    try { return (f[key] as String?) ?? (f[key]?.toString()); } catch (_) {}
+    try {
+      // Some Format objects expose fields as properties
+      switch (key) {
+        case 'url': return (f as dynamic).url?.toString();
+        case 'signatureCipher': return (f as dynamic).signatureCipher?.toString();
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -289,10 +303,18 @@ class YtMusicService {
         'thumbnails': _thumbnails(u.thumbnails),
       };
 
-  static Map<String, dynamic> _homeSectionToMap(dynamic s) => {
-        'title': (s as dynamic).title,
-        'contents': (s.contents as List).map((c) => _contentToMap(c as dynamic)).toList(),
+  static Map<String, dynamic> _homeSectionToMap(dynamic s) {
+    try {
+      var contents = <dynamic>[];
+      try { contents = (s.contents as List).toList(); } catch (_) {}
+      return {
+        'title': (s as dynamic).title?.toString() ?? '',
+        'contents': contents.map((c) => _contentToMap(c as dynamic)).toList(),
       };
+    } catch (_) {
+      return {'title': '', 'contents': <dynamic>[]};
+    }
+  }
 
   static Map<String, dynamic> _contentToMap(dynamic item) {
     try {

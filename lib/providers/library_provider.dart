@@ -79,23 +79,15 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   }
 
   Future<void> loadPlaylists() async {
-    if (!_ytMusic.isLoggedIn) return;
-    state = state.copyWith(isLoading: true);
-    try {
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Failed to load playlists: $e');
-    }
+    // dart_ytmusic_api v1.3.6 does not have getLibraryPlaylists()
+    // Playlist features will be available in a future API version
+    if (mounted) state = state.copyWith(isLoading: false);
   }
 
   Future<void> loadLikedSongs() async {
-    if (!_ytMusic.isLoggedIn) return;
-    state = state.copyWith(isLoading: true);
-    try {
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Failed to load liked songs: $e');
-    }
+    // dart_ytmusic_api v1.3.6 does not have getLikedSongs()
+    // Liked songs will be available in a future API version
+    if (mounted) state = state.copyWith(isLoading: false);
   }
 
   Future<List<Track>> searchSongs(String query) async {

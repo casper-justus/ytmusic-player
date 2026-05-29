@@ -62,6 +62,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     if (library.homeSections.isEmpty) {
+      final message = library.isLoggedIn
+          ? 'Could not load recommendations.\nPull down to retry or search for music.'
+          : 'Sign in to get recommendations.\nOr search for music to get started.';
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -69,16 +72,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Icon(Icons.music_note, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'Sign in to get recommendations',
+              message,
+              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.grey[600],
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Or search for music to get started',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[500],
                   ),
             ),
           ],

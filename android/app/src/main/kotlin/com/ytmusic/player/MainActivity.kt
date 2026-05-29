@@ -4,13 +4,12 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.ytmusic.player/mediastore"
-    private val PERMISSION_REQUEST_CODE = 100
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -22,25 +21,12 @@ class MainActivity : FlutterActivity() {
                         val handler = MediaStoreHandler(this)
                         result.success(handler.scanAudio())
                     } else {
-                        requestPermissions(
-                            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-                            PERMISSION_REQUEST_CODE
-                        )
                         result.error("PERMISSION_DENIED", "Read storage permission not granted", null)
                     }
                 }
                 else -> result.notImplemented()
             }
         }
-    }
-
-    @Deprecated("Use requestPermissions override")
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     private fun hasReadPermission(): Boolean {
