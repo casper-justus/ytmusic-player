@@ -1,7 +1,7 @@
 name: ytmusic_player
 description: A custom YouTube Music player with yt-dlp bundling, background playback, dynamic theming, downloads, and Chromecast support.
 publish_to: 'none'
-version: 0.0.9+1
+version: 0.0.10+1
 
 environment:
   sdk: ^3.2.0
