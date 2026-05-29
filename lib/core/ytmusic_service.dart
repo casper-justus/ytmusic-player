@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dart_ytmusic_api/yt_music.dart' as yt;
@@ -27,6 +28,19 @@ class YtMusicService {
     try {
       _api!.hasInitialized = false;
       await _api!.initialize(cookies: _cookies, gl: 'US', hl: 'en');
+      
+      if (_cookies.isNotEmpty) {
+        for (final c in _cookies.split('; ')) {
+          try {
+            final cookie = Cookie.fromSetCookieValue(c);
+            _api!.cookieJar.saveFromResponse(
+              Uri.parse('https://music.youtube.com/'),
+              [cookie],
+            );
+          } catch (_) {}
+        }
+      }
+
       _loggedIn = _cookies.isNotEmpty;
       _initialized = true;
     } catch (e) {
@@ -541,7 +555,7 @@ class YtMusicService {
         'id': (v as dynamic).videoId,
         'videoId': v.videoId,
         'title': v.name,
-        'artist': v.artist?.name ?? '',
+        'artist': v.artist?.name ?? "Unknown Artist",
         'artistId': v.artist?.artistId,
         // VideoDetailed has no album field - include with fallback
         'album': null,
@@ -575,15 +589,22 @@ class YtMusicService {
             .toList(),
       };
 
-  static Map<String, dynamic> _playlistFullToMap(dynamic p) => {
-        'id': (p as dynamic).playlistId,
-        'browseId': p.playlistId,
-        'title': p.name,
-        'artist': p.artist?.name ?? "Unknown Artist",
-        'artistId': p.artist?.artistId,
-        'videoCount': 0,
-        'thumbnails': _thumbnails(p.thumbnails),
-      };
+  static Map<String, dynamic> _playlistFullToMap(dynamic p) {
+    int vCount = 0;
+    try {
+      vCount = (p as dynamic).videoCount ?? 0;
+    } catch (_) {}
+    
+    return {
+      'id': (p as dynamic).playlistId,
+      'browseId': p.playlistId,
+      'title': p.name,
+      'artist': p.artist?.name ?? "Unknown Artist",
+      'artistId': p.artist?.artistId,
+      'videoCount': vCount,
+      'thumbnails': _thumbnails(p.thumbnails),
+    };
+  }
 
   static Map<String, dynamic> _artistToMap(dynamic a) => {
         'id': (a as dynamic).artistId,
