@@ -1,25 +1,13 @@
-# Flutter
-.dart_tool/
-.packages
-.pub/
-build/
-flutter_*.png
-*.iml
-
 # Android
-android/.gradle/
-android/app/build/
-android/build/
+build/
+.gradle/
 local.properties
 *.apk
 *.aab
 *.ap_
-
-# iOS
-ios/Pods/
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
+*.dex
+*.class
+*.iml
 
 # IDE
 .idea/
