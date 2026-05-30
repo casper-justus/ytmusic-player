@@ -176,20 +176,38 @@ object InnerTubeParser {
 
     /**
      * Parse search results.
-     * Handles musicShelfRenderer (list results) and musicCardShelfRenderer (top result card).
+     * Handles WEB_REMIX format (tabbedSearchResultsRenderer) and ANDROID format.
      */
     fun parseSearchResults(json: JsonObject): List<MusicItem> {
         val items = mutableListOf<MusicItem>()
 
         try {
-            val contents = json
-                .getAsJsonObject("contents")
+            val contents = json.getAsJsonObject("contents")
+            if (contents == null) {
+                Log.w("YTM", "parseSearchResults: no contents")
+                return items
+            }
+
+            // WEB_REMIX: contents > tabbedSearchResultsRenderer > tabs > tabRenderer > content > sectionListRenderer > contents
+            // ANDROID:  contents > tabRenderer > content > sectionListRenderer > contents
+            val sectionList = contents.getAsJsonObject("tabbedSearchResultsRenderer")
+                ?.getAsJsonArray("tabs")
+                ?.get(0)?.asJsonObject
                 ?.getAsJsonObject("tabRenderer")
                 ?.getAsJsonObject("content")
                 ?.getAsJsonObject("sectionListRenderer")
-                ?.getAsJsonArray("contents") ?: return items
+                ?.getAsJsonArray("contents")
+                ?: contents.getAsJsonObject("tabRenderer")
+                    ?.getAsJsonObject("content")
+                    ?.getAsJsonObject("sectionListRenderer")
+                    ?.getAsJsonArray("contents")
 
-            for (section in contents) {
+            if (sectionList == null) {
+                Log.w("YTM", "parseSearchResults: could not find sectionListRenderer. keys=${contents.keySet()}")
+                return items
+            }
+
+            for (section in sectionList) {
                 val sectionObj = section.asJsonObject
 
                 // Try musicCardShelfRenderer (top result card)
@@ -220,7 +238,7 @@ object InnerTubeParser {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("YTM", "parseSearchResults error: ${e.message}")
         }
 
         return items
@@ -275,45 +293,70 @@ object InnerTubeParser {
         val items = mutableListOf<MusicItem>()
 
         try {
-            val contents = json
-                .getAsJsonObject("contents")
-                ?.getAsJsonObject("singleColumnBrowseResultsRenderer")
+            val contents = json.getAsJsonObject("contents")
+            if (contents == null) {
+                Log.w("YTM", "parseLibraryPlaylists: no contents")
+                return items
+            }
+
+            // Navigate to sectionListRenderer contents
+            val sectionList = contents.getAsJsonObject("singleColumnBrowseResultsRenderer")
                 ?.getAsJsonArray("tabs")
                 ?.get(0)?.asJsonObject
                 ?.getAsJsonObject("tabRenderer")
                 ?.getAsJsonObject("content")
                 ?.getAsJsonObject("sectionListRenderer")
-                ?.getAsJsonArray("contents") ?: return items
+                ?.getAsJsonArray("contents")
 
-            for (section in contents) {
-                val gridRenderer = section.asJsonObject
-                    .getAsJsonObject("gridRenderer")
-                    ?.getAsJsonArray("items") ?: continue
+            if (sectionList == null) {
+                Log.w("YTM", "parseLibraryPlaylists: no sectionListRenderer, keys=${contents.keySet()}")
+                return items
+            }
 
-                for (content in gridRenderer) {
-                    val renderer = content.asJsonObject.getAsJsonObject("musicTwoRowItemRenderer") ?: continue
-                    val title = renderer
-                        .getAsJsonObject("title")
-                        ?.getAsJsonArray("runs")
-                        ?.get(0)?.asJsonObject
-                        ?.get("text")?.asString ?: continue
+            for (section in sectionList) {
+                val sectionObj = section.asJsonObject
 
-                    val thumbnail = extractThumbnailFromRenderer(renderer)
-                    val navEndpoint = renderer.getAsJsonObject("navigationEndpoint")
-                    val (_, browseId, _) = extractNavigation(navEndpoint)
+                // Try gridRenderer (playlist grid)
+                val gridItems = sectionObj.getAsJsonObject("gridRenderer")
+                    ?.getAsJsonArray("items")
 
-                    items.add(MusicItem(
-                        type = ItemType.PLAYLIST,
-                        title = title,
-                        thumbnailUrl = thumbnail,
-                        browseId = browseId ?: ""
-                    ))
+                if (gridItems != null) {
+                    for (content in gridItems) {
+                        val renderer = content.asJsonObject.getAsJsonObject("musicTwoRowItemRenderer") ?: continue
+                        val title = renderer
+                            .getAsJsonObject("title")
+                            ?.getAsJsonArray("runs")
+                            ?.get(0)?.asJsonObject
+                            ?.get("text")?.asString ?: continue
+
+                        val thumbnail = extractThumbnailFromRenderer(renderer)
+                        val navEndpoint = renderer.getAsJsonObject("navigationEndpoint")
+                        val (_, browseId, _) = extractNavigation(navEndpoint)
+
+                        items.add(MusicItem(
+                            type = ItemType.PLAYLIST,
+                            title = title,
+                            thumbnailUrl = thumbnail,
+                            browseId = browseId ?: ""
+                        ))
+                    }
+                } else {
+                    // Try musicCarouselShelfRenderer > contents (WEB_REMIX sometimes uses carousels)
+                    val carouselItems = sectionObj.getAsJsonObject("musicCarouselShelfRenderer")
+                        ?.getAsJsonArray("contents")
+                    if (carouselItems != null) {
+                        for (content in carouselItems) {
+                            val item = parseMusicItem(content.asJsonObject) ?: continue
+                            items.add(item)
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("YTM", "parseLibraryPlaylists error: ${e.message}")
         }
 
+        Log.d("YTM", "parseLibraryPlaylists returning ${items.size} items")
         return items
     }
 
@@ -380,14 +423,26 @@ object InnerTubeParser {
     private fun determineItemType(renderer: JsonObject, browseId: String?): ItemType {
         if (browseId != null) {
             return when {
-                browseId.startsWith("VL") || browseId.startsWith("RD") -> ItemType.PLAYLIST
-                browseId.startsWith("UC") -> ItemType.ARTIST
+                browseId.startsWith("VL") || browseId.startsWith("RD") || browseId.startsWith("OLAK5uy_") -> ItemType.PLAYLIST
+                browseId.startsWith("UC") || browseId.startsWith("UU") -> ItemType.ARTIST
                 browseId.startsWith("MP") -> ItemType.ALBUM
-                else -> ItemType.UNKNOWN
+                browseId.startsWith("FEmusic_") -> ItemType.PLAYLIST  // FE sections
+                else -> ItemType.SONG  // default to SONG if we have a browseId but unknown prefix
             }
         }
 
-        // Check for badges or overlay to determine type
+        // Check for navigation endpoint type to determine item type
+        val navEndpoint = renderer.getAsJsonObject("navigationEndpoint")
+        if (navEndpoint != null) {
+            if (navEndpoint.getAsJsonObject("watchEndpoint") != null) {
+                return ItemType.SONG
+            }
+            if (navEndpoint.getAsJsonObject("browseEndpoint") != null) {
+                return ItemType.PLAYLIST  // generic browse, likely playlist
+            }
+        }
+
+        // Check for badges to determine type
         val badges = renderer.getAsJsonArray("badges")
         if (badges != null && badges.size() > 0) {
             return ItemType.SONG
