@@ -1,5 +1,6 @@
 package com.ytmusic.player.network
 
+import android.util.Log
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -22,6 +23,7 @@ object InnerTubeParser {
         val sections = mutableListOf<MusicSection>()
 
         try {
+            Log.d("YTM", "Parsing home — root keys: ${json.keySet()}")
             val contents = json
                 .getAsJsonObject("contents")
                 ?.getAsJsonObject("singleColumnBrowseResultsRenderer")
@@ -30,16 +32,27 @@ object InnerTubeParser {
                 ?.getAsJsonObject("tabRenderer")
                 ?.getAsJsonObject("content")
                 ?.getAsJsonObject("sectionListRenderer")
-                ?.getAsJsonArray("contents") ?: return sections
+                ?.getAsJsonArray("contents") ?: run {
+                    Log.w("YTM", "parseHomeSections: could not find sectionListRenderer. Contents: ${json.get("contents")?.toString()?.take(500)}")
+                    return sections
+                }
 
+            Log.d("YTM", "Found ${contents.size()} raw section elements")
             for (sectionElement in contents) {
-                val section = parseSection(sectionElement.asJsonObject) ?: continue
-                sections.add(section)
+                val section = parseSection(sectionElement.asJsonObject)
+                if (section != null) {
+                    Log.d("YTM", "Parsed section: '${section.title}' with ${section.items.size} items")
+                    sections.add(section)
+                } else {
+                    Log.d("YTM", "Skipped section element: ${sectionElement.toString().take(200)}")
+                }
             }
         } catch (e: Exception) {
+            Log.e("YTM", "parseHomeSections error: ${e.message}")
             e.printStackTrace()
         }
 
+        Log.d("YTM", "parseHomeSections returning ${sections.size} sections")
         return sections
     }
 
@@ -76,16 +89,29 @@ object InnerTubeParser {
      */
     fun parseMusicItem(obj: JsonObject): MusicItem? {
         try {
+            val keys = obj.keySet()
             // Try musicTwoRowItemRenderer (album/playlist/artist grid cards on home page)
             val twoRow = obj.getAsJsonObject("musicTwoRowItemRenderer")
             if (twoRow != null) {
-                return parseTwoRowItem(twoRow)
+                val item = parseTwoRowItem(twoRow)
+                if (item != null) Log.d("YTM", "Parsed twoRowItem: '${item.title}' type=${item.type}")
+                else Log.w("YTM", "Failed to parse twoRowItem, keys=$keys")
+                return item
             }
 
             // Try musicResponsiveListItemRenderer (list items in search results)
-            val listRenderer = obj.getAsJsonObject("musicResponsiveListItemRenderer") ?: return null
-            return parseResponsiveListItem(listRenderer)
+            val listRenderer = obj.getAsJsonObject("musicResponsiveListItemRenderer")
+            if (listRenderer != null) {
+                val item = parseResponsiveListItem(listRenderer)
+                if (item != null) Log.d("YTM", "Parsed responsiveListItem: '${item.title}' type=${item.type}")
+                else Log.w("YTM", "Failed to parse responsiveListItem, keys=$keys")
+                return item
+            }
+
+            Log.w("YTM", "Unknown renderer type, keys=$keys")
+            return null
         } catch (e: Exception) {
+            Log.e("YTM", "parseMusicItem error: ${e.message}")
             return null
         }
     }

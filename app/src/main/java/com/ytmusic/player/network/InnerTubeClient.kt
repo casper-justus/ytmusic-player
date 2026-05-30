@@ -1,5 +1,6 @@
 package com.ytmusic.player.network
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -48,8 +49,9 @@ class InnerTubeClient(
             .url(url)
             .post(requestBody)
 
-        // Add headers
-        authManager.getHeaders().forEach { (key, value) ->
+        val headers = authManager.getHeaders()
+        Log.d("YTM", "POST /$endpoint — cookies: ${headers["Cookie"]?.take(50) ?: "none"}..., auth: ${headers["Authorization"]?.take(30) ?: "none"}")
+        headers.forEach { (key, value) ->
             requestBuilder.addHeader(key, value)
         }
 
@@ -57,9 +59,11 @@ class InnerTubeClient(
         val responseBody = response.body?.string() ?: throw RuntimeException("Empty response")
 
         if (!response.isSuccessful) {
+            Log.e("YTM", "API error ${response.code}: ${responseBody.take(500)}")
             throw RuntimeException("InnerTube API error ${response.code}: $responseBody")
         }
 
+        Log.d("YTM", "Response from /$endpoint: ${responseBody.take(300)}...")
         return responseBody
     }
 
