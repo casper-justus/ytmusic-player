@@ -76,47 +76,81 @@ object InnerTubeParser {
      */
     fun parseMusicItem(obj: JsonObject): MusicItem? {
         try {
-            // Try musicResponsiveListItemRenderer (most common)
-            val renderer = obj.getAsJsonObject("musicResponsiveListItemRenderer") ?: return null
+            // Try musicTwoRowItemRenderer (album/playlist/artist grid cards on home page)
+            val twoRow = obj.getAsJsonObject("musicTwoRowItemRenderer")
+            if (twoRow != null) {
+                return parseTwoRowItem(twoRow)
+            }
 
-            val flexColumns = renderer.getAsJsonArray("flexColumns") ?: return null
-
-            // Extract title from first flex column
-            val title = extractText(flexColumns[0]?.asJsonObject) ?: return null
-
-            // Extract subtitle/artist from second flex column
-            val subtitle = if (flexColumns.size() > 1) {
-                extractText(flexColumns[1]?.asJsonObject) ?: ""
-            } else ""
-
-            // Extract thumbnail
-            val thumbnail = extractThumbnail(renderer)
-
-            // Extract navigation data
-            val navEndpoint = renderer
-                .getAsJsonObject("navigationEndpoint")
-            val navResult = extractNavigation(navEndpoint)
-            val videoId = navResult.first
-            val browseId = navResult.second
-            val playlistId = navResult.third
-            val itemType = determineItemType(renderer, browseId)
-
-            return MusicItem(
-                type = itemType,
-                title = title,
-                artist = subtitle,
-                thumbnailUrl = thumbnail,
-                videoId = videoId,
-                browseId = browseId,
-                playlistId = playlistId
-            )
+            // Try musicResponsiveListItemRenderer (list items in search results)
+            val listRenderer = obj.getAsJsonObject("musicResponsiveListItemRenderer") ?: return null
+            return parseResponsiveListItem(listRenderer)
         } catch (e: Exception) {
             return null
         }
     }
 
     /**
-     * Parse search results
+     * Parse a musicTwoRowItemRenderer (grid cards used in home page carousels).
+     */
+    private fun parseTwoRowItem(renderer: JsonObject): MusicItem? {
+        val title = renderer
+            .getAsJsonObject("title")
+            ?.getAsJsonArray("runs")
+            ?.get(0)?.asJsonObject
+            ?.get("text")?.asString ?: return null
+
+        val subtitle = renderer
+            .getAsJsonObject("subtitle")
+            ?.getAsJsonArray("runs")
+            ?.joinToString("") { it.asJsonObject.get("text")?.asString ?: "" } ?: ""
+
+        val thumbnail = extractThumbnailFromRenderer(renderer)
+        val navEndpoint = renderer.getAsJsonObject("navigationEndpoint")
+        val (videoId, browseId, playlistId) = extractNavigation(navEndpoint)
+        val itemType = determineItemType(renderer, browseId)
+
+        return MusicItem(
+            type = itemType,
+            title = title,
+            artist = subtitle,
+            thumbnailUrl = thumbnail,
+            videoId = videoId,
+            browseId = browseId,
+            playlistId = playlistId
+        )
+    }
+
+    /**
+     * Parse a musicResponsiveListItemRenderer (list rows in search results).
+     */
+    private fun parseResponsiveListItem(renderer: JsonObject): MusicItem? {
+        val flexColumns = renderer.getAsJsonArray("flexColumns") ?: return null
+
+        val title = extractText(flexColumns[0]?.asJsonObject) ?: return null
+        val subtitle = if (flexColumns.size() > 1) {
+            extractText(flexColumns[1]?.asJsonObject) ?: ""
+        } else ""
+
+        val thumbnail = extractThumbnail(renderer)
+        val navEndpoint = renderer.getAsJsonObject("navigationEndpoint")
+        val (videoId, browseId, playlistId) = extractNavigation(navEndpoint)
+        val itemType = determineItemType(renderer, browseId)
+
+        return MusicItem(
+            type = itemType,
+            title = title,
+            artist = subtitle,
+            thumbnailUrl = thumbnail,
+            videoId = videoId,
+            browseId = browseId,
+            playlistId = playlistId
+        )
+    }
+
+    /**
+     * Parse search results.
+     * Handles musicShelfRenderer (list results) and musicCardShelfRenderer (top result card).
      */
     fun parseSearchResults(json: JsonObject): List<MusicItem> {
         val items = mutableListOf<MusicItem>()
@@ -130,7 +164,27 @@ object InnerTubeParser {
                 ?.getAsJsonArray("contents") ?: return items
 
             for (section in contents) {
-                val itemSection = section.asJsonObject
+                val sectionObj = section.asJsonObject
+
+                // Try musicCardShelfRenderer (top result card)
+                val cardRenderer = sectionObj.getAsJsonObject("musicCardShelfRenderer")
+                if (cardRenderer != null) {
+                    val cardItem = parseMusicCard(cardRenderer)
+                    if (cardItem != null) items.add(cardItem)
+
+                    // Also parse horizontal card rows
+                    val cardContents = cardRenderer.getAsJsonArray("contents")
+                    if (cardContents != null) {
+                        for (content in cardContents) {
+                            val item = parseMusicItem(content.asJsonObject) ?: continue
+                            items.add(item)
+                        }
+                    }
+                    continue
+                }
+
+                // Try musicShelfRenderer (regular list results)
+                val itemSection = sectionObj
                     .getAsJsonObject("musicShelfRenderer")
                     ?.getAsJsonArray("contents") ?: continue
 
@@ -144,6 +198,48 @@ object InnerTubeParser {
         }
 
         return items
+    }
+
+    /**
+     * Parse a musicCardShelfRenderer (top result card in search).
+     */
+    private fun parseMusicCard(cardRenderer: JsonObject): MusicItem? {
+        try {
+            val title = cardRenderer
+                .getAsJsonObject("title")
+                ?.getAsJsonArray("runs")
+                ?.get(0)?.asJsonObject
+                ?.get("text")?.asString ?: return null
+
+            val subtitle = cardRenderer
+                .getAsJsonObject("subtitle")
+                ?.getAsJsonArray("runs")
+                ?.joinToString("") { it.asJsonObject.get("text")?.asString ?: "" } ?: ""
+
+            val thumbnail = cardRenderer
+                .getAsJsonObject("thumbnail")
+                ?.getAsJsonObject("musicThumbnailRenderer")
+                ?.getAsJsonObject("thumbnail")
+                ?.getAsJsonArray("thumbnails")
+                ?.last()?.asJsonObject
+                ?.get("url")?.asString ?: ""
+
+            val navEndpoint = cardRenderer.getAsJsonObject("navigationEndpoint")
+            val (videoId, browseId, playlistId) = extractNavigation(navEndpoint)
+            val itemType = determineItemType(cardRenderer, browseId)
+
+            return MusicItem(
+                type = itemType,
+                title = title,
+                artist = subtitle,
+                thumbnailUrl = thumbnail,
+                videoId = videoId,
+                browseId = browseId,
+                playlistId = playlistId
+            )
+        } catch (e: Exception) {
+            return null
+        }
     }
 
     /**

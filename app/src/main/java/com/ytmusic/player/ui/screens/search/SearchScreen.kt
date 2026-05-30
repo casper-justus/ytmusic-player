@@ -16,7 +16,9 @@ import com.ytmusic.player.network.InnerTubeClient
 import com.ytmusic.player.network.InnerTubeParser
 import com.ytmusic.player.network.models.MusicItem
 import com.ytmusic.player.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,13 +61,16 @@ fun SearchScreen(
                     TextButton(onClick = {
                         if (query.isBlank()) return@TextButton
                         isLoading = true
+                        results = emptyList()
                         scope.launch {
                             try {
-                                val json = client.post("search", mapOf(
-                                    "query" to query
-                                ))
+                                val json = withContext(Dispatchers.IO) {
+                                    client.post("search", mapOf("query" to query))
+                                }
                                 results = InnerTubeParser.parseSearchResults(client.parseJson(json))
-                            } catch (_: Exception) {}
+                            } catch (e: Exception) {
+                                // surface error by leaving results empty; user sees "No results"
+                            }
                             isLoading = false
                         }
                     }) {

@@ -25,7 +25,9 @@ import com.ytmusic.player.ui.theme.OnDark
 import com.ytmusic.player.ui.theme.OnDarkMuted
 import com.ytmusic.player.ui.theme.OnDarkSecondary
 import com.ytmusic.player.ui.theme.PrimaryRed
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,20 +43,28 @@ fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    fun fetchHome() {
         scope.launch {
+            isLoading = true
+            error = null
             try {
-                val json = client.post("browse", mapOf(
-                    "browseId" to "FEmusic_home"
-                ))
+                val json = withContext(Dispatchers.IO) {
+                    client.post("browse", mapOf(
+                        "browseId" to "FEmusic_home"
+                    ))
+                }
                 val parsed = InnerTubeParser.parseHomeSections(client.parseJson(json))
                 sections = parsed
                 isLoading = false
             } catch (e: Exception) {
-                error = e.message
+                error = e.message ?: "Unknown error"
                 isLoading = false
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        fetchHome()
     }
 
     Scaffold(
@@ -90,10 +100,7 @@ fun HomeScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(error ?: "", color = OnDarkSecondary, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = {
-                            isLoading = true; error = null
-                            scope.launch { /* re-fetch */ }
-                        }) {
+                        Button(onClick = { fetchHome() }) {
                             Text("Retry")
                         }
                     }
