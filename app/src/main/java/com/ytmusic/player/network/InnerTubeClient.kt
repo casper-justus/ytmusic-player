@@ -63,7 +63,15 @@ class InnerTubeClient(
             throw RuntimeException("InnerTube API error ${response.code}: $responseBody")
         }
 
-        Log.d("YTM", "Response from /$endpoint: ${responseBody.take(300)}...")
+        // Log full response in chunks for debugging
+        responseBody.chunked(3000).forEachIndexed { i, chunk ->
+            Log.d("YTM", "Response[$i] /$endpoint: $chunk")
+        }
+        // Also dump to sdcard for analysis via `adb shell cat /sdcard/ytm_response.json`
+        try {
+            java.io.File("/sdcard/ytm_response_${endpoint.replace("/","_")}.json")
+                .writeText(responseBody)
+        } catch (_: Exception) { }
         return responseBody
     }
 

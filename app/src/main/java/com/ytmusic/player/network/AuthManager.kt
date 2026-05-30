@@ -37,14 +37,13 @@ class AuthManager {
         const val ORIGIN = "https://music.youtube.com"
 
         // Client context for InnerTube requests
+        // WEB_REMIX (desktop web) returns old renderer format (musicCarouselShelfRenderer etc.)
+        // ANDROID_MUSIC has migrated to the new Element rendering system (elementRenderer).
         val CLIENT_CONTEXT = mapOf(
             "client" to mapOf(
-                "clientName" to "ANDROID_MUSIC",
-                "clientVersion" to "7.27.53",
-                "androidSdkVersion" to 34,
-                "osName" to "Android",
-                "osVersion" to "14",
-                "platform" to "MOBILE",
+                "clientName" to "WEB_REMIX",
+                "clientVersion" to "1.20250122.01.00",
+                "platform" to "DESKTOP",
                 "gl" to "US",
                 "hl" to "en"
             )
@@ -110,10 +109,10 @@ class AuthManager {
     fun getHeaders(): Map<String, String> {
         val headers = mutableMapOf(
             "Content-Type" to "application/json",
-            "X-YouTube-Client-Name" to "67",
-            "X-YouTube-Client-Version" to "7.27.53",
+            "X-YouTube-Client-Name" to "1",  // WEB_REMIX
+            "X-YouTube-Client-Version" to "1.20250122.01.00",
             "Origin" to ORIGIN,
-            "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36"
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
         val cookies = getCookies()
